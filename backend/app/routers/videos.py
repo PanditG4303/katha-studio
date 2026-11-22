@@ -45,6 +45,10 @@ def dashboard(db: Session = Depends(get_db)):
         "draft_scripts": len([p for p in projects if p.status == "SCRIPT_READY"]),
         "failed": len([v for v in videos if v.production_status == "FAILED"]),
         "awaiting_review": len([v for v in videos if v.production_status == "AWAITING_REVIEW"]),
+        "output_ready": len([v for v in videos if v.output_state == "READY"]),
+        "output_reviewed": len([v for v in videos if v.output_state == "REVIEWED"]),
+        "output_published": len([v for v in videos if v.output_state == "PUBLISHED"]),
+        "output_failed": len([v for v in videos if v.output_state == "FAILED"]),
     }
     by_channel = []
     for channel in db.query(Channel).filter(Channel.archived.is_(False)).all():
@@ -116,6 +120,7 @@ def list_videos(
     status: str | None = None,
     platform: str | None = None,
     youtube_status: str | None = None,
+    output_state: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     archived: bool = Query(False),
@@ -140,6 +145,8 @@ def list_videos(
         query = query.filter(Video.platform == platform)
     if youtube_status:
         query = query.filter(Video.youtube_status == youtube_status)
+    if output_state:
+        query = query.filter(Video.output_state == output_state)
     if search:
         pattern = f"%{search.strip()}%"
         query = query.filter(
@@ -214,7 +221,7 @@ def bulk_update(payload: VideoBulkUpdate, db: Session = Depends(get_db)):
     if not videos:
         raise HTTPException(404, "No matching videos.")
     for video in videos:
-        for field in ["channel_id", "production_status", "platform", "category", "archived", "tags"]:
+        for field in ["channel_id", "production_status", "platform", "category", "output_state", "archived", "tags"]:
             value = getattr(payload, field)
             if value is not None:
                 setattr(video, field, value)
@@ -233,6 +240,7 @@ def manual_import(payload: VideoImportRequest, db: Session = Depends(get_db)):
             title=payload.title,
             source=payload.source,
             require_stable=payload.wait_for_stable,
+            output_state=payload.output_state,
         )
         return result
     except ImportError as exc:

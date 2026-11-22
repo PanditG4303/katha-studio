@@ -238,6 +238,10 @@ export interface Video {
   published_at: string | null;
   platform: string;
   source: string;
+  selected_agent: string;
+  browser_account_id: number | null;
+  platform_url: string;
+  output_state: string;
   file_size: number;
   is_demo: boolean;
   archived: boolean;
@@ -478,4 +482,197 @@ export interface DiagnosticsResult {
 
 export interface ApiError extends Error {
   status?: number;
+}
+
+// ------------------------------------------------------------------ animation agents
+export interface AgentInfo {
+  agent: "claude_code" | "antigravity" | "manual";
+  label: string;
+  installed: boolean;
+  path: string;
+  version: string;
+  error: string;
+  authentication: { available: boolean | null; verified: boolean; note: string };
+  project_access: boolean;
+  busy: boolean;
+  running_processes: string[];
+  desktop?: { installed: boolean; path: string };
+  application_path?: string;
+  cli_path?: string;
+  handoff: Record<string, boolean | string>;
+}
+
+export interface AgentLock {
+  id: number;
+  scope: string;
+  channel_id: number | null;
+  project_id: number | null;
+  episode_id: number | null;
+  agent: string;
+  agent_label: string;
+  handoff_id: number | null;
+  status: string;
+  note: string;
+  acquired_at: string | null;
+  heartbeat_at: string | null;
+  released_at: string | null;
+}
+
+export interface AgentHandoff {
+  id: number;
+  channel_id: number | null;
+  channel_name: string;
+  project_id: number | null;
+  project_title: string;
+  episode_id: number | null;
+  episode_title: string;
+  agent: string;
+  agent_label: string;
+  mode: string;
+  status: string;
+  working_dir: string;
+  package_path: string;
+  prompt_path: string;
+  command: string;
+  pid: number | null;
+  exit_code: number | null;
+  output_tail: string;
+  error: string;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string | null;
+  prompt?: string;
+}
+
+export interface AgentSettings {
+  selected_agent: string;
+  claude_path: string;
+  antigravity_path: string;
+  permission_mode: string;
+  keep_terminal_open: boolean;
+}
+
+export interface AgentsPayload {
+  selected_agent: string;
+  agents: AgentInfo[];
+  settings: AgentSettings;
+  active_locks: AgentLock[];
+  recent_handoffs: AgentHandoff[];
+  permission_modes: string[];
+}
+
+export interface Skill {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  version: string;
+  source: string;
+  path: string;
+  compatible_agents: string[];
+  required_tools: string[];
+  permissions: string[];
+  installed_agents: string[];
+  status: string;
+  approved: boolean;
+  metadata: {
+    warnings?: string[];
+    files?: Array<{ path: string; size: number; kind: string }>;
+    dependencies?: string[];
+    has_scripts?: boolean;
+    [key: string]: unknown;
+  };
+  created_at: string | null;
+  inspection?: {
+    metadata?: Record<string, unknown>;
+    content?: string;
+    files: Array<{ path: string; size: number; kind: string }>;
+    warnings: string[];
+    has_scripts: boolean;
+    dependencies: string[];
+    error?: string;
+  };
+}
+
+export interface McpServer {
+  id: number;
+  name: string;
+  slug: string;
+  transport: string;
+  command: string;
+  args: string[];
+  url: string;
+  env_keys: string[];
+  agents: string[];
+  status: string;
+  source_path: string;
+  error: string;
+  last_checked_at: string | null;
+  config: Record<string, unknown>;
+  note: string;
+}
+
+export interface BrowserAccount {
+  id: number;
+  platform: "youtube" | "instagram";
+  platform_label: string;
+  label: string;
+  slug: string;
+  profile_dir: string;
+  status: string;
+  detected_identity: string;
+  identity_verified: boolean;
+  last_used_at: string | null;
+  last_check_at: string | null;
+  error: string;
+  archived: boolean;
+  browser_open: boolean;
+  busy: boolean;
+  profile_exists: boolean;
+  meta: Record<string, unknown>;
+}
+
+export interface BrowserPublish {
+  id: number;
+  video_id: number;
+  video_title: string;
+  video_path: string;
+  browser_account_id: number;
+  account_label: string;
+  platform: string;
+  action: string;
+  status: string;
+  stage: string;
+  title: string;
+  description: string;
+  tags: string[];
+  visibility: string;
+  scheduled_at: string | null;
+  remote_url: string;
+  remote_id: string;
+  screenshot_path: string | null;
+  log: string;
+  error: string;
+  confirmation_required: boolean;
+  confirmed_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  attempts: number;
+  created_at: string | null;
+}
+
+export interface BrowserOverview {
+  runtime: {
+    playwright_installed: boolean;
+    browser: { channel: string; path: string; found: boolean };
+    profiles_root: string;
+    screenshots_root: string;
+    platforms: Record<string, { label: string; login_url: string; color: string }>;
+    automation_available: boolean;
+    security_note: string;
+  };
+  accounts: BrowserAccount[];
+  jobs: BrowserPublish[];
+  platforms: Record<string, { label: string; login_url: string; color: string }>;
+  security_note: string;
 }

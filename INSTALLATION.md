@@ -9,8 +9,10 @@ Katha Studio is a Windows desktop application. It runs a React interface inside 
 - Python 3.11 or newer for source installs (tested with Python 3.13)
 - At least 2 GB of free disk space for the app, workspace and videos
 - A modern GPU is not required
+- Google Chrome is optional and only needed for guided browser publishing
+- Claude Code CLI and/or Google Antigravity are optional animation agents
 
-FFmpeg and FFprobe are installed through npm (`ffmpeg-static`, `ffprobe-static`) for source installs. The installer bundles both tools inside the application resources.
+FFmpeg and FFprobe are installed through npm (`ffmpeg-static`, `ffprobe-static`) for source installs. The installer bundles both tools inside the application resources. The Python Playwright client is included in `backend\requirements.txt`; it uses the installed Google Chrome channel and does not download a separate Chromium browser.
 
 ---
 
@@ -110,7 +112,7 @@ npm run dist
 This runs:
 
 1. `npm run build` - TypeScript checks, Vite renderer build and Electron TypeScript build.
-2. `npm run build:backend` - installs PyInstaller if needed and creates `backend-dist\katha-backend\katha-backend.exe`.
+2. `npm run build:backend` - installs PyInstaller if needed and creates `backend-dist\katha-backend\katha-backend.exe`, collecting the Playwright package.
 3. `electron-builder` - packages the app and creates the NSIS installer.
 
 Outputs:
@@ -156,7 +158,7 @@ No certificate is configured. To sign the installer, add a Windows code-signing 
 4. If there is no channel, create one in **My Channels**.
 5. Optionally connect AI providers, ElevenLabs and YouTube in **Connections & Settings**.
 
-The app works offline for channel setup, demo ideation, demo scripts, Windows SAPI narration, production packages, the Claude handoff, video import and manual Instagram preparation. Online features require keys or accounts.
+The app works offline for channel setup, demo ideation, demo scripts, Windows SAPI narration, production packages, animation handoffs, video import, skill review and manual Instagram preparation. Online features require keys or accounts. Guided browser publishing requires Google Chrome and a manual sign-in; if Chrome is missing, the app reports automation unavailable and manual publishing still works.
 
 ---
 
@@ -170,6 +172,9 @@ Default paths:
 | Backups | `%LOCALAPPDATA%\Katha Studio\backups` |
 | Logs | `%LOCALAPPDATA%\Katha Studio\logs` |
 | Thumbnails | `%LOCALAPPDATA%\Katha Studio\thumbnails` |
+| Browser profiles | `%LOCALAPPDATA%\Katha Studio\browser\profiles` |
+| Browser screenshots | `%LOCALAPPDATA%\Katha Studio\browser\screenshots` |
+| Shared skill library | `%LOCALAPPDATA%\Katha Studio\skills` |
 | Workspace | `Documents\Katha Studio` |
 | Channels | `Documents\Katha Studio\Channels` |
 | Production packages | `Documents\Katha Studio\Production Packages` |

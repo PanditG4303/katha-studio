@@ -191,6 +191,28 @@ export function OverviewPage() {
                   );
                 })}
               </div>
+              <div className="relative mt-4 flex flex-wrap items-center gap-1.5 border-t border-ink/[0.06] pt-3">
+                <span className="mr-1 text-[9px] font-bold uppercase tracking-[0.12em] text-muted/60">Output folders</span>
+                {[
+                  { state: "READY", count: counts.output_ready || 0, tone: "bg-peach/45" },
+                  { state: "REVIEWED", count: counts.output_reviewed || 0, tone: "bg-lavender/45" },
+                  { state: "PUBLISHED", count: counts.output_published || 0, tone: "bg-sage/45" },
+                  { state: "FAILED", count: counts.output_failed || 0, tone: "bg-rose/35" },
+                ].map((item) => (
+                  <button
+                    key={item.state}
+                    type="button"
+                    onClick={() => navigate(`/videos?output=${item.state}`)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] font-bold transition hover:brightness-95",
+                      item.count > 0 ? `${item.tone} text-ink/75` : "bg-ink/[0.035] text-ink/30",
+                    )}
+                  >
+                    {item.state}
+                    <span className={item.count > 0 ? "text-clay" : "text-ink/20"}>{item.count}</span>
+                  </button>
+                ))}
+              </div>
             </Card>
 
             <Card className="p-6">

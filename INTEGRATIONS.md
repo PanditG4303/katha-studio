@@ -211,55 +211,83 @@ Disconnecting an account removes the local account and its stored tokens. It doe
 
 ---
 
-## Claude Desktop and Claude Code
+## Animation agents: Claude Code, Google Antigravity and manual
 
-Katha Studio prepares animation work for Claude; it does not run Claude.
+Katha Studio prepares animation work for a real agent; it does not impersonate one. All three modes share the same permanent channel project, assets and episode files.
 
 ### Detection
 
-The backend checks standard Windows install locations for Claude Desktop and looks for the Claude Code CLI on `PATH`. It also checks whether a Claude process is running. Detection is best-effort. If Claude is installed somewhere unusual, the app reports "not detected" and you can still open the folder yourself.
+The backend checks standard Windows install locations and `PATH` for:
 
-No Claude credentials, cookies or session files are requested or read.
+- the official Claude Code CLI (`claude`),
+- Claude Desktop (legacy handoff option),
+- Google Antigravity.
 
-### Handoff
+You can override the Claude Code and Antigravity paths in **Connections & Settings > Production** or **Animation Agents > Agents**. Detection is best-effort. If an app is installed somewhere unusual, Katha reports "not detected" and manual handoff still works.
+
+No agent credentials, cookies or session files are requested or read. Each agent signs in through its own application.
+
+### One permanent project
 
 For each channel there is one permanent `ANIMATION_PROJECT` containing:
 
-- `CLAUDE.md` - the channel's master instructions,
+- `CLAUDE.md` - Claude-specific instructions,
+- `AGENTS.md` - the shared instruction contract for every agent,
+- `.agent/rules/katha-animation.md` and `.agent/workflows/animation-production.md` - Antigravity-compatible rules and workflow,
+- `ANIMATION_CONVENTIONS.md`,
 - `VISUAL_STYLE_GUIDE.md`,
 - `CHARACTER_BIBLE.md`,
 - `AUDIO_GUIDE.md`,
 - `ASSET_MANIFEST.json`,
+- `SKILLS.md` and the installed skill folders,
 - folders for characters, rigs, backgrounds, props, expressions, effects, templates, assets, music, fonts, episodes, renders and references.
 
-When a story is approved, **Claude Animation > Generate package** writes a production package and links an episode folder with a handoff note. The package includes the master prompt, script, references, audio and subtitles where available.
+A story handoff creates `episodes/<story-slug>/` with `PRODUCTION_TASK.md`, `HANDOFF.md` and `AGENT_HANDOFF.json`. The production package is linked, not copied over. Existing files are never overwritten by a new handoff.
 
-Actions available:
+### Locks and handoffs
 
-- **Open project folder** - opens the channel's animation project.
-- **Open package** - opens the production package.
-- **Copy master prompt** - copies the prompt to the clipboard.
-- **Open handoff note** - opens the note with real paths.
-- **Open Claude Desktop** - launches it only if detected.
-- **Open Claude Code** - opens a terminal in the animation project only if the CLI is detected.
+- A project lock and an optional episode lock are stored in SQLite and in `.katha/LOCK.json`.
+- Starting a second agent on a locked project or episode returns a clear conflict instead of overwriting active work.
+- Finishing, cancelling or releasing a handoff frees the lock.
+- **Claude Code, visible terminal** launches the official CLI in the permanent project with the prepared task.
+- **Claude Code, captured run** uses the official CLI in headless mode, sends the production task on stdin, captures stdout/stderr and records the real exit code. Permission mode is configurable (`default`, `acceptEdits`, `plan`).
+- **Antigravity** opens the installed application with the permanent project folder. The prepared `PRODUCTION_TASK.md` is inside the episode folder; there is no unsupported UI automation.
+- **Manual** opens the project folder and leaves the complete prompt for any animation tool or a person.
 
-There is no UI automation, prompt injection or session reading. The handoff is intentionally a folder plus a prompt plus a person.
+There is no UI automation, fake chat, prompt injection or session reading. If a documented agent integration is unavailable, the handoff falls back to a folder plus a prompt.
+
+### Skills and MCP
+
+- One shared skill library holds reviewed skills. Built-in skills are seeded approved; imported skills stay unapproved until you inspect their `SKILL.md`, scripts, dependencies and permission hints.
+- Installing a skill copies it into the locations each agent actually reads: `.claude/skills/`, `.agent/skills/` and `.katha/skills/`, and updates `SKILLS.md` plus the shared rules.
+- MCP discovery reads Claude and Antigravity configuration files. Katha stores server definitions and environment variable **names** only; it never reads or stores secret values.
+- A safe MCP config merge writes a timestamped backup first. If an agent's format is unsupported, Katha tells you to configure it in that agent.
 
 ### Returning the film
 
-Claude (or any editor) writes the rendered video into the channel's output/watch folder. Katha Studio's watcher validates it with FFprobe after it is stable, or you can use **Video Library > Scan folders** / **Import video**. See [USER_GUIDE.md](USER_GUIDE.md).
+The agent (or you) writes the rendered video into the channel output folder, preferably `READY/`. Katha's watcher validates it with FFprobe after it is stable, or you can use **Video Library > Scan folders** / **Import video**. The original file is never deleted. See [USER_GUIDE.md](USER_GUIDE.md).
 
 ---
 
 ## Instagram
 
-Instagram is a manual workflow by design.
+Instagram has two honest paths.
+
+### Prepared manual post
 
 - Katha Studio does not ask for an Instagram username or password.
-- It does not use the Instagram API, browser automation or unofficial endpoints.
 - It prepares a `manual_ready` publication with a caption, notes, an optional planned time and the video path.
 - You post from your phone or browser.
 - After posting, you choose **Mark posted** and can add the real URL.
+
+### Guided browser publishing
+
+- **Browser Accounts** seeds isolated, persistent Chromium profiles (two for Instagram, four for YouTube).
+- You open a profile and sign in manually on the official Instagram website. Chromium owns the password, cookies and session; Katha stores only profile metadata and status.
+- Katha tests the profile and verifies the signed-in identity before an upload.
+- The guided flow opens the real Instagram upload page, fills the caption and file where the site supports it, and stops at **awaiting confirmation**.
+- Nothing is posted until you explicitly confirm. Katha records success only when the website itself confirms the post.
+- CAPTCHA, 2FA, a security check or an unverified identity stops the job with a real error or a manual-required state. Nothing is faked.
 
 Katha Studio warns when a film is 16:9 and you plan a Reel, because Reels need vertical video. It does not reframe or crop for you.
 
@@ -286,8 +314,12 @@ If no voices are listed, the PowerShell script or the speech subsystem is unavai
 | OpenRouter | OpenRouter API key + selected model | No live call; demo mode tested |
 | ElevenLabs | API key + voice + model | No live call; Windows SAPI tested end to end |
 | YouTube | Google Cloud project, OAuth client, channel | OAuth validation paths tested; real upload needs your account |
-| Claude Desktop / Code | Your own Claude installation | Detection tested on this machine |
+| Claude Code | Official CLI and your Claude account | Detection, lock conflict, handoff creation and package wiring tested; a real production run needs your account |
+| Google Antigravity | Installed app and your account | Detection and folder launch tested on this machine |
+| Skills / MCP | Local files and agent configs | Seeding, inspection, approval, install and safe MCP discovery tested locally |
+| Browser profiles | Google Chrome or Microsoft Edge and manual sign-in | Profile CRUD, isolation, runtime and identity checks tested locally; real site publishing needs your login |
 | Windows SAPI | None | Yes, real synthesis and playback tested |
-| Instagram | Your own account, manual | Preparation and marking tested locally |
+| Instagram | Your own account, manual or browser profile | Preparation and marking tested locally; guided publishing awaits your login |
+| YouTube browser publishing | Your own Google account in a browser profile | Guided flow and confirmation gate tested locally; a real upload needs your login |
 
 Where a real external call could not be made without your credentials, this documentation says so. The app reports those states honestly rather than faking success.

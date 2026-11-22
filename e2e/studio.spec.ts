@@ -143,8 +143,17 @@ test("opens every studio section without a render error", async () => {
   await navigate(page, "Voice & Music Lab", "Voice & Music Lab");
   await screenshot(page, "06-voice");
 
-  await navigate(page, "Claude Animation", "Claude Animation Studio");
+  await navigate(page, "Animation Studio", "Animation Studio");
   await screenshot(page, "07-animation");
+
+  await navigate(page, "Animation Agents", "Animation Agents");
+  await expect(page.getByRole("button", { name: /Skills/ })).toBeVisible();
+  await page.getByRole("button", { name: /Skills/ }).click();
+  await expect(page.getByText("Shared skill library", { exact: true })).toBeVisible();
+  await screenshot(page, "07b-agents-skills");
+  await page.getByRole("button", { name: /MCP/ }).click();
+  await expect(page.getByText("MCP servers", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: /^Agents/ }).click();
 
   await navigate(page, "Video Library", "Video Library");
   await screenshot(page, "08-video-library");
@@ -152,18 +161,26 @@ test("opens every studio section without a render error", async () => {
   await navigate(page, "Publishing Manager", "Publishing Manager");
   await screenshot(page, "09-publishing");
 
+  await navigate(page, "Browser Accounts", "Browser Accounts");
+  await expect(page.getByText("YouTube", { exact: false }).first()).toBeVisible();
+  await screenshot(page, "09b-browser-accounts");
+
   await navigate(page, "Content Calendar", "Content Calendar");
   await screenshot(page, "10-calendar");
 
   await navigate(page, "Connections & Settings", "Connections & Settings");
+  await page.getByRole("button", { name: "Production", exact: true }).click();
+  await expect(page.getByText("Animation agents", { exact: true })).toBeVisible();
+  await expect(page.getByText("Skills & MCP", { exact: true })).toBeVisible();
   await screenshot(page, "11-settings");
 });
 
 test("imports a validated film from the channel output folder", async () => {
   // The channel output folder follows the documented workspace layout.
   const outputDir = path.join(workspaceDir, "Outputs", "e2e-story-channel");
-  fs.mkdirSync(outputDir, { recursive: true });
-  fs.copyFileSync(sampleVideo, path.join(outputDir, "e2e-finished-film.mp4"));
+  const readyDir = path.join(outputDir, "READY");
+  fs.mkdirSync(readyDir, { recursive: true });
+  fs.copyFileSync(sampleVideo, path.join(readyDir, "e2e-finished-film.mp4"));
 
   await navigate(page, "Video Library", "Video Library");
   // The watcher only imports files that have stopped changing, and needs to
@@ -173,6 +190,7 @@ test("imports a validated film from the channel output folder", async () => {
   await page.waitForTimeout(9000);
   await page.getByRole("button", { name: "Scan folders", exact: true }).click();
   await expect(page.getByText("e2e finished film", { exact: false }).first()).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator("span").filter({ hasText: /^READY$/ }).first()).toBeVisible();
   await screenshot(page, "12-video-imported");
 
   await page.getByRole("button", { name: "Open video", exact: true }).first().click();

@@ -244,7 +244,15 @@ The watcher requires:
 - an mtime at least 5 seconds old,
 - the file seen in two scans at least 8 seconds apart.
 
-Wait at least 15 seconds after the file stops changing, or use **Video Library > Scan folders**. If it still does not import, read the import history and the backend log for the FFprobe error.
+It scans the output root and the `READY`, `REVIEWED`, `PUBLISHED` and `FAILED` subfolders to a depth of two. Wait at least 15 seconds after the file stops changing, or use **Video Library > Scan folders**. If it still does not import, read the import history and the backend log for the FFprobe error.
+
+### The output state is blank
+
+A blank state means the file was found directly in the output root or outside a recognised state folder. Move it into `READY`, `REVIEWED`, `PUBLISHED` or `FAILED`, then scan again, or select the video in the library and set the output state in bulk.
+
+### A state folder does not exist
+
+Open **Connections & Settings > Production**, choose the channel and choose **Ensure folders**. The workspace refresh creates the four state folders without deleting anything.
 
 ### "This video is already in the library"
 
@@ -322,28 +330,101 @@ The video may have uploaded while the thumbnail or captions failed. The error is
 
 ---
 
-## Claude Animation
+## Animation agents
 
-### Claude is "not detected"
+### An agent is "not detected"
 
-Detection checks standard install locations and `PATH`. If Claude is installed elsewhere:
+Detection checks standard install locations and `PATH`. If an agent is installed elsewhere:
 
-- use **Open project folder** and open Claude yourself,
-- for Claude Code, ensure the `claude` executable is on `PATH` or install it normally.
+- set the Claude Code CLI path or Antigravity path in **Connections & Settings > Production** or **Animation Agents > Agents**,
+- for Claude Code, ensure the official `claude` executable is on `PATH` or point Katha at it,
+- for Antigravity, point Katha at `Antigravity.exe`.
 
-Detection is a convenience, not a requirement. The handoff is a real folder and prompt.
+Detection is a convenience, not a requirement. Manual handoff is always available.
+
+### "Another agent already holds this project"
+
+A project or episode lock is active. Open **Animation Agents > Activity** (or the Agents tab) and finish, cancel or release the existing handoff. Locks also live in `.katha/LOCK.json`; do not delete that file while an agent is working.
+
+### Claude Code opens but the task is missing
+
+Open the episode folder and read `PRODUCTION_TASK.md`. If the terminal opened without it, prepare a new handoff and choose **Open Claude Code terminal** again. Katha never injects a prompt into a running chat.
+
+### The captured Claude Code run failed
+
+Read the recorded exit code, stdout and stderr in the handoff. Common causes are a missing `claude` sign-in, a bad custom path, or a permission mode that blocks edits. Sign in with the official CLI and retry. Katha does not read or store Claude credentials.
+
+### Antigravity did not open the project
+
+Make sure the app path is correct and Antigravity is installed. If the app opens without a folder, use **Open project folder** and choose the permanent project. Katha does not automate Antigravity's UI.
 
 ### The package is missing files
 
 Generate the package again from an approved script. Audio and subtitles are included only if they exist. Partial failures are reported; read the message. The script must be approved before packaging.
 
-### Claude did not produce a video
+### An agent did not produce a video
 
-Katha Studio does not control Claude's work. Check the handoff note, the package path and Claude's output. When a video exists, put it in the channel output folder or import it manually.
+Katha Studio does not control the agent's work. Check the handoff note, the package path and the agent's output. When a video exists, put it in `READY/` in the channel output folder or import it manually.
 
 ### A render is not imported
 
 See [Video import](#video-import). The watcher only imports stable, valid files.
+
+---
+
+## Skills and MCP
+
+### An imported skill is not approved
+
+This is intentional. Open **Animation Agents > Skills**, choose **Inspect**, read `SKILL.md`, the file list, scripts, dependencies and permission hints, then approve it. Nothing is copied into an agent project before approval.
+
+### A skill is installed but the agent does not see it
+
+Check the skill's installed locations. Katha copies into `.claude/skills/`, `.agent/skills/` and `.katha/skills/` and updates `SKILLS.md`. Some Antigravity versions do not load a skill directory; the shared summary and production prompt still contain the skill.
+
+### An MCP server shows "manual required"
+
+Katha only merges formats it understands. If the agent's config format differs, configure the server in that agent directly, then press **Rescan**. Katha never guesses at a config shape.
+
+### MCP secrets are missing
+
+By design, Katha stores environment variable **names** only. Add the values in the agent's own configuration or environment. Katha does not read or display secret values.
+
+---
+
+## Browser accounts and guided publishing
+
+### "Automation unavailable"
+
+Guided publishing needs Google Chrome and the bundled Playwright runtime. Install Chrome, then press **Refresh** in **Browser Accounts**. The manual Instagram workflow still works without Chrome.
+
+### A profile will not open
+
+Close any other Katha browser window for that profile, then try again. Check the profile path under `%LOCALAPPDATA%\Katha Studio\browser\profiles`. Do not delete the folder while the profile is open.
+
+### The profile is not signed in
+
+Open the profile and sign in manually on the official website. Katha never asks for the password. After signing in, choose **Test** to verify the identity.
+
+### Identity verification failed
+
+The site may show a different account, a consent screen or a security check. Sign in to the correct account in the profile, complete any 2FA manually, and test again. Katha refuses to publish to an unverified identity.
+
+### The job stops at "awaiting confirmation"
+
+This is the safety gate. Review the real website page, then choose **Confirm publish** in Katha. Nothing has been posted yet.
+
+### CAPTCHA, 2FA or a security check
+
+Complete it manually in the open browser window if the site allows, then retry. If the page cannot continue, the job records `manual_required` and keeps a screenshot. Katha does not bypass these checks.
+
+### The website changed and the upload form was not filled
+
+The guided flow is site-dependent. Use the manual workflow or finish the upload in the open browser, then record the real result. Katha never marks a publish successful without the website's confirmation.
+
+### Removing a profile
+
+Removing a profile deletes its local Chromium user-data directory after confirmation. It does not delete anything from YouTube or Instagram. You will need to sign in again if you recreate it.
 
 ---
 

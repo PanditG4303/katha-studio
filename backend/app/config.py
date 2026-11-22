@@ -35,6 +35,12 @@ BACKUP_DIR = _env_path("KATHA_BACKUP_DIR", DATA_DIR / "backups")
 THUMBNAIL_DIR = _env_path("KATHA_THUMBNAIL_DIR", DATA_DIR / "thumbnails")
 UPLOAD_DIR = _env_path("KATHA_UPLOAD_DIR", DATA_DIR / "uploads")
 PACKAGE_CACHE_DIR = _env_path("KATHA_PACKAGE_CACHE_DIR", DATA_DIR / "packages")
+BROWSER_PROFILE_DIR = _env_path("KATHA_BROWSER_PROFILE_DIR", DATA_DIR / "BROWSER_PROFILES")
+SKILL_LIBRARY_DIR = _env_path("KATHA_SKILL_LIBRARY_DIR", DATA_DIR / "skills")
+AGENT_RUN_DIR = _env_path("KATHA_AGENT_RUN_DIR", DATA_DIR / "agent_runs")
+BROWSER_SCREENSHOT_DIR = _env_path("KATHA_BROWSER_SCREENSHOT_DIR", DATA_DIR / "browser_screenshots")
+
+OUTPUT_SUBFOLDERS = ["READY", "REVIEWED", "PUBLISHED", "FAILED"]
 
 DEFAULT_DIRS = {
     "channels_root": WORKSPACE_DIR / "Channels",
@@ -96,6 +102,10 @@ class AppConfig:
     backup_dir: Path = BACKUP_DIR
     thumbnail_dir: Path = THUMBNAIL_DIR
     upload_dir: Path = UPLOAD_DIR
+    browser_profile_dir: Path = BROWSER_PROFILE_DIR
+    skill_library_dir: Path = SKILL_LIBRARY_DIR
+    agent_run_dir: Path = AGENT_RUN_DIR
+    browser_screenshot_dir: Path = BROWSER_SCREENSHOT_DIR
     ffmpeg_path: str | None = FFMPEG_PATH
     ffprobe_path: str | None = FFPROBE_PATH
     default_dirs: dict = field(default_factory=lambda: dict(DEFAULT_DIRS))
@@ -108,6 +118,10 @@ class AppConfig:
             self.backup_dir,
             self.thumbnail_dir,
             self.upload_dir,
+            self.browser_profile_dir,
+            self.skill_library_dir,
+            self.agent_run_dir,
+            self.browser_screenshot_dir,
             *self.default_dirs.values(),
         ]:
             path.mkdir(parents=True, exist_ok=True)

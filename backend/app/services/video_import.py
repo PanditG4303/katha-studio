@@ -9,7 +9,7 @@ from pathlib import Path
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..config import config
+from ..config import OUTPUT_SUBFOLDERS, config
 from ..database import SessionLocal, utcnow
 from ..models import Channel, Episode, ImportHistory, Project, Video
 from ..utils import normalize_path, safe_filename, slugify
@@ -32,6 +32,7 @@ def import_video(
     title: str | None = None,
     source: str = "manual",
     require_stable: bool = False,
+    output_state: str = "",
 ) -> dict:
     file_path = Path(path)
     if not file_path.exists() or not file_path.is_file():
@@ -121,7 +122,17 @@ def import_video(
     video.subtitle_path = episode.subtitle_path if episode else video.subtitle_path
     video.thumbnail_source_path = str(thumbnail_path) if thumbnail_path else None
     video.thumbnail_path = str(thumbnail_path) if thumbnail_path else video.thumbnail_path
-    video.production_status = "AWAITING_REVIEW"
+    state = output_state.strip().upper()
+    if state in {"READY", "REVIEWED", "PUBLISHED", "FAILED"}:
+        video.output_state = state
+        video.production_status = {
+            "READY": "AWAITING_REVIEW",
+            "REVIEWED": "REVIEWED",
+            "PUBLISHED": "PUBLISHED",
+            "FAILED": "FAILED",
+        }[state]
+    else:
+        video.production_status = "AWAITING_REVIEW"
     video.platform = video.platform or "youtube"
     video.source = source
     video.file_size = file_path.stat().st_size
@@ -224,6 +235,38 @@ def _is_stable(path: Path, min_age_seconds: float = 5.0) -> bool:
     return time.time() - stat.st_mtime >= min_age_seconds and stat.st_size > 1024
 
 
+def _iter_output_files(directory: Path, max_depth: int = 2):
+    """Yield video files in the output root and its state subfolders.
+
+    Katha Studio owns the four state folders. A depth limit keeps the watcher
+    predictable and prevents it from crawling arbitrary nested project trees.
+    """
+    import os
+
+    root_depth = len(directory.parts)
+    for current, dirs, files in os.walk(directory):
+        current_path = Path(current)
+        depth = len(current_path.parts) - root_depth
+        if depth >= max_depth:
+            dirs[:] = []
+        dirs[:] = [name for name in dirs if not name.startswith(".")]
+        for name in files:
+            if Path(name).suffix.lower() in VIDEO_EXTENSIONS:
+                yield current_path / name
+
+
+def _output_state_for(directory: Path, file_path: Path) -> str:
+    try:
+        relative = file_path.relative_to(directory)
+    except ValueError:
+        return ""
+    if len(relative.parts) > 1:
+        state = relative.parts[0].upper()
+        if state in OUTPUT_SUBFOLDERS:
+            return state
+    return ""
+
+
 class WatcherService:
     def __init__(self) -> None:
         self._seen: dict[str, tuple[int, float, float]] = {}
@@ -269,8 +312,8 @@ class WatcherService:
                     directory = Path(folder)
                     if not directory.exists():
                         continue
-                    for file_path in directory.iterdir():
-                        if not file_path.is_file() or file_path.suffix.lower() not in VIDEO_EXTENSIONS:
+                    for file_path in _iter_output_files(directory):
+                        if not file_path.is_file():
                             continue
                         key = normalize_path(str(file_path)).lower()
                         if key in self._imported:
@@ -293,6 +336,7 @@ class WatcherService:
                                 channel_id=channel.id,
                                 source="watch_folder",
                                 require_stable=True,
+                                output_state=_output_state_for(directory, file_path),
                             )
                             self._imported.add(key)
                             results.append(result)

@@ -308,6 +308,10 @@ def video_dict(db: Session, video: Video, compact: bool = False) -> dict:
         "published_at": iso(video.published_at),
         "platform": video.platform,
         "source": video.source,
+        "selected_agent": video.selected_agent,
+        "browser_account_id": video.browser_account_id,
+        "platform_url": video.platform_url,
+        "output_state": video.output_state,
         "file_size": video.file_size,
         "is_demo": video.is_demo,
         "archived": video.archived,
@@ -426,4 +430,39 @@ def job_dict(job: JobRecord) -> dict:
         "created_at": iso(job.created_at),
         "started_at": iso(job.started_at),
         "finished_at": iso(job.finished_at),
+    }
+
+
+def browser_publish_dict(publish, db: Session | None = None) -> dict:
+    from .models import BrowserAccount, Video
+
+    account = db.get(BrowserAccount, publish.browser_account_id) if db else None
+    video = db.get(Video, publish.video_id) if db else None
+    return {
+        "id": publish.id,
+        "video_id": publish.video_id,
+        "video_title": video.title if video else "",
+        "video_path": video.final_video_path if video else "",
+        "browser_account_id": publish.browser_account_id,
+        "account_label": account.label if account else "",
+        "platform": publish.platform,
+        "action": publish.action,
+        "status": publish.status,
+        "stage": publish.stage,
+        "title": publish.title,
+        "description": publish.description,
+        "tags": publish.tags or [],
+        "visibility": publish.visibility,
+        "scheduled_at": iso(publish.scheduled_at),
+        "remote_url": publish.remote_url,
+        "remote_id": publish.remote_id,
+        "screenshot_path": publish.screenshot_path,
+        "log": publish.log,
+        "error": publish.error,
+        "confirmation_required": publish.confirmation_required,
+        "confirmed_at": iso(publish.confirmed_at),
+        "started_at": iso(publish.started_at),
+        "finished_at": iso(publish.finished_at),
+        "attempts": publish.attempts,
+        "created_at": iso(publish.created_at),
     }

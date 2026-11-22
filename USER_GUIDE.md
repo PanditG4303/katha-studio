@@ -6,20 +6,22 @@ If you have not installed the app yet, start with [INSTALLATION.md](INSTALLATION
 
 ---
 
-## The ten sections
+## The twelve sections
 
 | Section | What it is for |
 | --- | --- |
-| Overview | A calm dashboard of stories, videos, jobs and upcoming publications |
+| Overview | A calm dashboard of stories, videos, jobs, output-folder states and upcoming publications |
 | My Channels | Create and manage channel workspaces and their permanent animation projects |
 | Create Content | Turn a prompt, notes, links or files into ideas and scripts |
 | Story & Script Studio | Read, edit, approve and package a multi-part script |
 | Voice & Music Lab | Generate narration line by line and manage a music library |
-| Claude Animation | Prepare and hand off the production package, then receive the rendered film |
-| Video Library | Import, validate, edit and organise finished films |
-| Publishing Manager | Upload and schedule on YouTube; prepare Instagram posts manually |
+| Animation Studio | Prepare and hand off the production package, then receive the rendered film |
+| Animation Agents | Detect agents, prepare and launch handoffs, review locks, skills and MCP servers |
+| Video Library | Import, validate, filter, edit and organise finished films |
+| Publishing Manager | Upload and schedule on YouTube; prepare Instagram posts or use guided browser publishing |
+| Browser Accounts | Manage isolated YouTube and Instagram browser profiles and guided publish jobs |
 | Content Calendar | See plans, confirmed schedules and reminders in a month view |
-| Connections & Settings | Keys, models, storage, backups, jobs, logs and diagnostics |
+| Connections & Settings | Keys, models, agents, storage, backups, jobs, logs and diagnostics |
 
 The left sidebar is always available. The bottom-left channel switcher changes the active channel for pages that are channel-aware.
 
@@ -107,7 +109,7 @@ In **Voice & Music Lab > Voice Studio**, choose the project, select lines or a s
 
 When the script is ready, choose **Approve script**. Approval unlocks the production package.
 
-Open **Claude Animation** and generate the package for the story. The package contains:
+Open **Animation Studio** and generate the package for the story. The package contains:
 
 - the master animation prompt,
 - the episode script,
@@ -124,28 +126,30 @@ Documents\Katha Studio\Production Packages\<project>\
 
 and linked into the channel's `ANIMATION_PROJECT\episodes\<slug>\`.
 
-### 6. Hand off to Claude
+### 6. Hand off to an animation agent
 
-Katha Studio detects Claude Desktop and Claude Code, but it does not automate them.
+Katha Studio detects the official Claude Code CLI and Google Antigravity, but it does not automate their UI. Manual handoff always works.
 
+- **Prepare handoff** creates `PRODUCTION_TASK.md`, `HANDOFF.md` and `AGENT_HANDOFF.json` inside the episode folder and takes a project/episode lock.
 - **Open project folder** opens the permanent animation project in File Explorer.
 - **Open package** opens the production package.
 - **Copy master prompt** copies the prompt.
-- **Open Claude Desktop** launches the installed app if it is detected.
-- **Open Claude Code** opens a terminal in the animation project if the CLI is detected.
+- **Open Claude Code terminal** opens the official CLI in the animation project if it is detected.
+- **Open Antigravity** opens the app with the permanent project folder if it is detected.
+- **Manual** opens the folder and leaves the complete task for any tool.
 
-Paste the master prompt into Claude and point it at the package folder. Claude does the animation work outside Katha Studio.
+Claude Code, Antigravity or you do the animation work outside Katha Studio. A second agent cannot start on the same project or episode until the first handoff is finished, cancelled or released.
 
 ### 7. Import the finished film
 
-When Claude renders a video into the channel output folder, Katha Studio's watcher validates it with FFprobe after the file has stopped changing. You can also choose **Video Library > Scan folders** or **Import video**.
+When an agent renders a video into the channel output folder, preferably `READY/`, Katha Studio's watcher validates it with FFprobe after the file has stopped changing. You can also choose **Video Library > Scan folders** or **Import video**.
 
-A film is only imported when it is a real, readable video. Katha Studio records its duration, resolution, codec, frame rate, file size, thumbnail and a fingerprint to prevent duplicates.
+A film is only imported when it is a real, readable video. Katha Studio records its duration, resolution, codec, frame rate, file size, thumbnail, output state and a fingerprint to prevent duplicates.
 
 ### 8. Publish or prepare
 
 - **YouTube**: connect an account in **Publishing Manager**, then upload or schedule a film. Katha Studio uses the official API, uploads the thumbnail and captions when present, and only reports a schedule after YouTube confirms it.
-- **Instagram**: Katha Studio prepares a caption, notes, a planned time and the file path. You post it yourself, then mark it posted with the real link if you have one.
+- **Instagram**: prepare a caption, notes, a planned time and the file path, then post it yourself and mark it posted. Or open **Browser Accounts**, sign in to a verified profile, and use guided publishing with an explicit confirmation before the final post.
 
 ---
 
@@ -275,45 +279,112 @@ Katha Studio does not generate music and does not claim a track is cleared for c
 
 ---
 
-## Claude Animation
+## Animation Studio
 
-This page is a handoff desk, not a Claude automation tool.
+This page is the handoff desk for Claude Code, Google Antigravity and manual production. It is not a chat window.
 
 ### Status cards
 
-- **Claude Desktop** - detected installation and whether it appears to be running.
+- **Claude Desktop** - detected installation and whether it appears to be running (legacy option).
 - **Claude Code CLI** - detected executable and version.
-- **Handoff method** - always "Folder + master prompt".
+- **Antigravity** - detected application and path.
+- **Selected handoff agent** - the agent currently chosen in Settings.
+- **Locks** - active project or episode locks.
 
-Detection is best-effort and based on standard install locations and PATH. If Claude is installed somewhere unusual, open the folder yourself.
+Detection is best-effort and based on standard install locations and PATH. You can override paths in **Animation Agents > Agents** or **Connections & Settings > Production**. If an agent is installed somewhere unusual, open the folder yourself.
 
 ### Permanent channel project
 
-Each channel has one `ANIMATION_PROJECT`. It holds the reusable visual world: style guide, character bible, rigs, backgrounds, props, templates and references. The page shows the path and lets you open it, copy it or refresh missing folders.
+Each channel has one `ANIMATION_PROJECT`. It holds the reusable visual world: shared instructions, style guide, character bible, animation conventions, rigs, backgrounds, props, templates and references. The page shows the path and lets you open it, copy it or refresh missing folders. Claude Code, Antigravity and manual work all use this same project and the same episode files.
 
 ### Handoff queue
 
 Approved stories with a production package appear here. A story can be:
 
-- ready for Claude,
+- ready for an agent,
 - in progress,
 - animation complete,
 - failed.
 
-Actions include opening the package, copying the master prompt, opening the handoff note and opening the output folder.
+Actions include opening the package, preparing a real handoff, copying the master prompt, opening the handoff note and opening the output folder. A handoff creates `PRODUCTION_TASK.md`, `HANDOFF.md` and `AGENT_HANDOFF.json` inside the episode folder and takes a project/episode lock.
 
 ### Output inbox
 
-When a validated video is imported from the channel output folder, it appears in the output inbox. A placeholder video record is created when a script is completed, so you can see the expected film before it exists. Placeholder records show **File not on disk** until a real file is imported.
+When a validated video is imported from the channel output tree, it appears in the output inbox. A placeholder video record is created when a script is completed, so you can see the expected film before it exists. Placeholder records show **File not on disk** until a real file is imported.
 
 ### What Katha Studio does not do
 
-- It does not type into Claude, click Claude's UI, or inject prompts.
-- It does not read Claude credentials or session data.
+- It does not type into an agent's UI, click its buttons, or inject a fake chat prompt.
+- It does not read agent credentials, cookies or session data.
 - It does not claim a render exists until a real file is validated.
-- It does not delete or overwrite Claude's work.
+- It does not delete or overwrite an agent's work, and it does not allow two agents to hold the same project or episode lock.
 
-The handoff is intentionally plain: a folder, a prompt, and a human.
+The handoff is intentionally plain: a folder, a real prompt, a lock, and a human.
+
+---
+
+## Animation Agents
+
+This page has four tabs: **Agents**, **Skills**, **MCP** and **Activity**.
+
+### Agents
+
+- See every detected agent and its real path.
+- Choose the default animation agent.
+- Override the Claude Code CLI and Antigravity paths.
+- Prepare a handoff for a project with a production package.
+- Launch Claude Code in a visible terminal, run a captured Claude Code headless job, open Antigravity with the project folder, or use manual handoff.
+- Review active locks and recent handoffs.
+
+A second handoff on the same project or episode is refused with a conflict. Finish, cancel or release the first handoff before switching agents.
+
+### Skills
+
+Katha ships a shared library of built-in storytelling, animation and editing skills. Built-ins are approved. Imported skills stay unapproved until you inspect them:
+
+- read `SKILL.md`,
+- review scripts, dependencies and permission hints,
+- approve or reject,
+- install only into the agents that actually load skills.
+
+Installing copies the skill into `.claude/skills/`, `.agent/skills/` and `.katha/skills/` and updates `SKILLS.md`. Uninstalling removes those copies but leaves the shared library entry.
+
+### MCP
+
+MCP definitions are discovered from Claude and Antigravity configuration. Katha shows server names, commands, arguments and environment variable **names** only. It never displays or stores secret values. Adding a server performs a safe merge with a timestamped backup; if the agent's format is unsupported, configure it in that agent.
+
+### Activity
+
+Shows real handoff records, modes, status, captured output where available, and lock history.
+
+---
+
+## Browser Accounts
+
+Katha seeds six isolated persistent Chromium profiles: four YouTube and two Instagram. You can add more.
+
+### Profile lifecycle
+
+1. Create a profile with a name and platform.
+2. Choose **Open** to launch an isolated Chromium browser window.
+3. Sign in manually on the official website.
+4. Choose **Test** to verify the profile opens and, where supported, read the signed-in identity.
+5. Choose **Close** when finished.
+6. Remove a profile with explicit confirmation.
+
+Each profile has its own Chromium user-data directory. Katha stores only the profile name, platform, path, status and verified identity in SQLite. Passwords, cookies and tokens stay in Chromium's profile and are never copied into the database.
+
+### Guided publishing
+
+1. Choose a video and a verified profile.
+2. Review the title, description, caption, thumbnail and schedule where the site supports them.
+3. Start the guided upload.
+4. Katha opens the real website, checks the signed-in identity and fills what it can.
+5. The job stops at **awaiting confirmation**. Nothing is published yet.
+6. Choose **Confirm publish** only after you have reviewed the page.
+7. Katha waits for the website's own confirmation and records the real URL or the real failure.
+
+CAPTCHA, 2FA, a security check, a wrong account or an unsupported page stops the job. Katha records `manual_required` or `failed`; it never reports a fake success. Screenshots of the final state are saved for review.
 
 ---
 
@@ -336,11 +407,13 @@ A file that is still being written is rejected with a clear message. The folder 
 
 ### Scan folders
 
-**Scan folders** checks the configured channel watch/output folders. This is how rendered films normally arrive. The scan is safe to run repeatedly; duplicates are recorded in the import log instead of creating another video.
+**Scan folders** checks the configured channel watch/output folders, including the `READY`, `REVIEWED`, `PUBLISHED` and `FAILED` subfolders to a depth of two. This is how rendered films normally arrive. The scan is safe to run repeatedly; duplicates are recorded in the import log instead of creating another video. A file found inside a state folder receives that output state and a matching production status.
 
 ### Video cards and detail
 
-Each card shows the thumbnail, title, channel, production status, duration, resolution and aspect ratio. Placeholder videos show **File not on disk**.
+Each card shows the thumbnail, title, channel, production status, output state, duration, resolution and aspect ratio. Placeholder videos show **File not on disk**.
+
+Use the search, channel, status, platform and output-folder filters, and switch between grid and table views. Select one or more videos to change their output state or archive them in bulk.
 
 Open a video to:
 
@@ -348,6 +421,7 @@ Open a video to:
 - edit title, description, tags, hashtags, category and platform,
 - re-read metadata,
 - reveal the file in Explorer,
+- open its output folder,
 - open subtitles,
 - archive or restore the video,
 - mark it published manually,
@@ -402,7 +476,9 @@ Cancelling a YouTube-scheduled publication locally returns a clear error telling
 
 ### Instagram
 
-Instagram is manual by design:
+Instagram has two paths:
+
+**Prepared manual post**
 
 1. Choose a film.
 2. Write or edit the caption.
@@ -410,6 +486,17 @@ Instagram is manual by design:
 4. Choose **Prepare post**.
 
 Katha Studio saves a `manual_ready` item with the caption, file path and notes. It does not post, does not store an Instagram password, and does not verify a post. After posting yourself, use **Mark posted** and add the real URL if you have one.
+
+**Guided browser publishing**
+
+1. Open **Browser Accounts** and make sure an Instagram profile is verified.
+2. Choose **Publish with a browser profile** in Publishing Manager, or start from Browser Accounts.
+3. Choose the film, profile and caption.
+4. Review the real Instagram page when it opens.
+5. Confirm the final publish explicitly.
+6. Katha records success only after Instagram confirms the post.
+
+The job stops at CAPTCHA, 2FA, a security check or an unverified account. Nothing is faked.
 
 Instagram Reels need a vertical 9:16 video. Katha Studio warns when the selected film is 16:9 but does not reframe it.
 
@@ -444,6 +531,13 @@ Use the channel and platform filters to narrow the view. Click an event to see i
 
 Keys are written to Windows Credential Manager. The database stores only provider configuration and status, never the secret value.
 
+### Production
+
+- **Animation agents**: detected Claude Code, Antigravity and manual; choose the default agent, override paths, choose the Claude headless permission mode and re-detect.
+- **Skills & MCP**: counts of the shared library, approved skills, installed projects and MCP servers, with direct links to the matching tabs.
+- **Browser accounts**: profile counts, verified identities, confirmed publishes and a link to Browser Accounts.
+- **Channel project & output folders**: choose a channel, see its permanent animation project, set its output and optional watch folder, open `READY` / `REVIEWED` / `PUBLISHED` / `FAILED`, save, and ensure the folder scaffolding exists.
+
 ### Studio
 
 - **Storage**: workspace root and individual roots for channels, packages, outputs, assets, music and incoming videos.
@@ -460,6 +554,8 @@ Runs real checks:
 - SQLite connectivity,
 - free disk space,
 - Claude Desktop and Claude Code detection,
+- Antigravity detection,
+- browser runtime availability and seeded profiles,
 - provider configuration.
 
 The same page shows the app version, platform, Python version, database path, workspace path and log path. Use **Open logs** when something fails.
@@ -483,10 +579,12 @@ The top bar and Settings show recent jobs with status, progress and errors. Jobs
 
 - Demo content is fictional and is labelled as such.
 - AI output can be wrong. Research summaries and sources are drafts, not verified facts.
-- ElevenLabs, Zen, OpenRouter and YouTube require your own accounts and are subject to their quotas and terms.
+- ElevenLabs, Zen, OpenRouter, YouTube and Instagram require your own accounts and are subject to their quotas and terms.
 - YouTube uploads can fail for quota, permissions, processing or policy reasons. The app shows the real error.
-- Instagram is always manual.
-- Claude animation happens outside the app. Katha Studio prepares and validates; it does not render.
+- Instagram guided publishing depends on the current website layout. If a page changes, Katha stops with `manual_required` rather than guessing.
+- Browser publishing uses the installed Google Chrome or Microsoft Edge through an isolated profile. If neither browser is available, the guided path is disabled and manual posting still works.
+- Claude Code and Antigravity animation happens outside Katha Studio. Katha prepares, locks and validates; it does not render or fake a chat.
+- Antigravity's skill/rules format may differ between versions. The shared `AGENTS.md`, `.agent/rules` and prepared prompt remain the reliable handoff.
 - Video import depends on FFmpeg/FFprobe and on the file being a real, readable video.
 - The installer is unsigned unless you add a certificate.
 

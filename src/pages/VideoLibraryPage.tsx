@@ -93,11 +93,15 @@ export function VideoLibraryPage() {
   const [channelFilter, setChannelFilter] = useState(selectedChannelId ? String(selectedChannelId) : "all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [outputFilter, setOutputFilter] = useState(() => searchParams.get("output") || "all");
   const [sort, setSort] = useState("updated_at");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkState, setBulkState] = useState("READY");
+  const [bulkBusy, setBulkBusy] = useState("");
 
   const selectedId = searchParams.get("video") ? Number(searchParams.get("video")) : null;
 
@@ -110,9 +114,10 @@ export function VideoLibraryPage() {
       if (channelFilter !== "all") params.set("channel_id", channelFilter);
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (platformFilter !== "all") params.set("platform", platformFilter);
+      if (outputFilter !== "all") params.set("output_state", outputFilter);
       return api(`/videos?${params.toString()}`);
     },
-    [search, channelFilter, statusFilter, platformFilter, sort, dataVersion],
+    [search, channelFilter, statusFilter, platformFilter, outputFilter, sort, dataVersion],
   );
 
   const dashboard = useFetch<DashboardData>(() => api("/dashboard"), [dataVersion]);
@@ -149,6 +154,32 @@ export function VideoLibraryPage() {
     } finally {
       setRescanning(false);
     }
+  };
+
+  const toggleSelected = (id: number) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  };
+
+  const bulkUpdate = async (payload: Record<string, unknown>, message: string) => {
+    if (!selectedIds.length) return;
+    setBulkBusy("update");
+    try {
+      await api("/videos/bulk-update", { method: "POST", json: { video_ids: selectedIds, ...payload } });
+      toast.success(message, `${selectedIds.length} video${selectedIds.length === 1 ? "" : "s"} updated.`);
+      setSelectedIds([]);
+      await videos.reload(true);
+      void dashboard.reload(true);
+    } catch (error) {
+      toast.error("Could not update the selected videos", errorMessage(error));
+    } finally {
+      setBulkBusy("");
+    }
+  };
+
+  const openOutputFolder = (video: Video) => {
+    if (!video.final_video_path) return;
+    const folder = video.final_video_path.replace(/[\\/][^\\/]+$/, "");
+    if (folder) void bridge.openPath(folder);
   };
 
   return (
@@ -212,6 +243,13 @@ export function VideoLibraryPage() {
             <option value="youtube">YouTube</option>
             <option value="instagram">Instagram</option>
           </Select>
+          <Select value={outputFilter} onChange={(event) => setOutputFilter(event.target.value)} className="w-[150px]">
+            <option value="all">Any output folder</option>
+            <option value="READY">READY</option>
+            <option value="REVIEWED">REVIEWED</option>
+            <option value="PUBLISHED">PUBLISHED</option>
+            <option value="FAILED">FAILED</option>
+          </Select>
           <Select value={sort} onChange={(event) => setSort(event.target.value)} className="w-[150px]">
             <option value="updated_at">Recently updated</option>
             <option value="created_at">Recently imported</option>
@@ -229,6 +267,50 @@ export function VideoLibraryPage() {
           />
         </div>
       </Card>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-white/55 px-3 py-2">
+        <label className="flex cursor-pointer items-center gap-2 text-[10.5px] font-semibold text-muted">
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 rounded border-ink/20 accent-ink"
+            checked={list.length > 0 && selectedIds.length === list.length}
+            onChange={(event) => setSelectedIds(event.target.checked ? list.map((video) => video.id) : [])}
+          />
+          Select all visible
+        </label>
+        {selectedIds.length ? (
+          <>
+            <span className="rounded-full bg-ink px-2.5 py-1 text-[9.5px] font-bold text-white">{selectedIds.length} selected</span>
+            <Select value={bulkState} onChange={(event) => setBulkState(event.target.value)} className="w-[140px] py-1.5 text-[10.5px]">
+              <option value="READY">READY</option>
+              <option value="REVIEWED">REVIEWED</option>
+              <option value="PUBLISHED">PUBLISHED</option>
+              <option value="FAILED">FAILED</option>
+            </Select>
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={bulkBusy === "update"}
+              onClick={() => void bulkUpdate({ output_state: bulkState }, `Moved to ${bulkState}`)}
+            >
+              Set output state
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={bulkBusy === "update"}
+              onClick={() => void bulkUpdate({ archived: true }, "Videos archived")}
+            >
+              Archive
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+              Clear
+            </Button>
+          </>
+        ) : (
+          <span className="text-[10px] text-muted/70">Select videos for bulk output-state changes or archiving.</span>
+        )}
+      </div>
 
       {videos.loading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -256,43 +338,60 @@ export function VideoLibraryPage() {
       ) : view === "grid" ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {list.map((video) => (
-            <VideoCard key={video.id} video={video} onOpen={() => openVideo(video)} onPublish={() => navigate(`/publishing?video=${video.id}`)} />
+            <VideoCard
+              key={video.id}
+              video={video}
+              selected={selectedIds.includes(video.id)}
+              onToggle={() => toggleSelected(video.id)}
+              onOpen={() => openVideo(video)}
+              onOpenFolder={() => openOutputFolder(video)}
+              onPublish={() => navigate(`/publishing?video=${video.id}`)}
+            />
           ))}
         </div>
       ) : (
         <Card className="overflow-hidden">
           {list.map((video, index) => (
-            <button
+            <div
               key={video.id}
-              type="button"
-              onClick={() => openVideo(video)}
               className={cn(
-                "flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-white/60",
+                "flex w-full items-center gap-3 px-4 py-3 transition hover:bg-white/60",
                 index > 0 && "border-t border-ink/[0.05]",
               )}
             >
-              <VideoThumbnail
-                videoId={video.id}
-                title={video.title}
-                hasThumbnail={video.has_thumbnail}
-                duration={video.duration}
-                className="h-14 w-24 shrink-0"
+              <input
+                type="checkbox"
+                aria-label={`Select ${video.title}`}
+                className="h-3.5 w-3.5 shrink-0 rounded border-ink/20 accent-ink"
+                checked={selectedIds.includes(video.id)}
+                onChange={() => toggleSelected(video.id)}
               />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[12.5px] font-bold">{video.title}</p>
-                <p className="mt-0.5 truncate text-[10.5px] text-muted">
-                  {video.channel_name}
-                  {video.project_title ? ` · ${video.project_title}` : ""} · {formatDate(video.updated_at)}
-                </p>
-              </div>
-              <div className="hidden shrink-0 items-center gap-3 sm:flex">
-                {video.youtube_url ? (
-                  <Badge tone="rose">YouTube</Badge>
-                ) : null}
-                <StatusBadge status={video.production_status} />
-              </div>
-              <ArrowRight size={14} className="shrink-0 text-muted/50" />
-            </button>
+              <button type="button" onClick={() => openVideo(video)} className="flex min-w-0 flex-1 items-center gap-4 text-left">
+                <VideoThumbnail
+                  videoId={video.id}
+                  title={video.title}
+                  hasThumbnail={video.has_thumbnail}
+                  duration={video.duration}
+                  className="h-14 w-24 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-bold">{video.title}</p>
+                  <p className="mt-0.5 truncate text-[10.5px] text-muted">
+                    {video.channel_name}
+                    {video.project_title ? ` · ${video.project_title}` : ""} · {formatDate(video.updated_at)}
+                  </p>
+                </div>
+                <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                  {video.output_state ? <Badge tone={video.output_state === "FAILED" ? "rose" : video.output_state === "READY" ? "peach" : "sage"}>{video.output_state}</Badge> : null}
+                  {video.youtube_url ? <Badge tone="rose">YouTube</Badge> : null}
+                  <StatusBadge status={video.production_status} />
+                </div>
+                <ArrowRight size={14} className="shrink-0 text-muted/50" />
+              </button>
+              <IconButton label="Open output folder" onClick={() => openOutputFolder(video)}>
+                <FolderOpen size={13} />
+              </IconButton>
+            </div>
           ))}
         </Card>
       )}
@@ -328,9 +427,23 @@ export function VideoLibraryPage() {
   );
 }
 
-function VideoCard({ video, onOpen, onPublish }: { video: Video; onOpen: () => void; onPublish: () => void }) {
+function VideoCard({
+  video,
+  selected,
+  onToggle,
+  onOpen,
+  onOpenFolder,
+  onPublish,
+}: {
+  video: Video;
+  selected: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  onOpenFolder: () => void;
+  onPublish: () => void;
+}) {
   return (
-    <Card className="group overflow-hidden p-0 transition hover:-translate-y-0.5 hover:shadow-lift">
+    <Card className={cn("group relative overflow-hidden p-0 transition hover:-translate-y-0.5 hover:shadow-lift", selected && "ring-2 ring-ink/15")}>
       <button type="button" onClick={onOpen} className="relative block w-full text-left">
         <VideoThumbnail
           videoId={video.id}
@@ -341,6 +454,11 @@ function VideoCard({ video, onOpen, onPublish }: { video: Video; onOpen: () => v
         />
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
           <StatusBadge status={video.production_status} />
+          {video.output_state ? (
+            <Badge tone={video.output_state === "FAILED" ? "rose" : video.output_state === "READY" ? "peach" : "sage"}>
+              {video.output_state}
+            </Badge>
+          ) : null}
           {video.is_demo ? <Badge tone="peach">Demo</Badge> : null}
         </div>
         {!video.has_video ? (
@@ -354,6 +472,15 @@ function VideoCard({ video, onOpen, onPublish }: { video: Video; onOpen: () => v
           </span>
         ) : null}
       </button>
+      <label className="absolute right-3 top-3 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg bg-white/90 shadow-sm">
+        <input
+          type="checkbox"
+          aria-label={`Select ${video.title}`}
+          className="h-3.5 w-3.5 rounded border-ink/20 accent-ink"
+          checked={selected}
+          onChange={onToggle}
+        />
+      </label>
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -381,6 +508,9 @@ function VideoCard({ video, onOpen, onPublish }: { video: Video; onOpen: () => v
         <div className="mt-3 flex items-center justify-between border-t border-ink/[0.05] pt-2.5">
           <span className="text-[9.5px] font-semibold text-muted/60">Updated {formatDate(video.updated_at)}</span>
           <div className="flex items-center gap-1">
+            <IconButton label="Open output folder" onClick={onOpenFolder} disabled={!video.final_video_path}>
+              <FolderOpen size={13} />
+            </IconButton>
             {video.youtube_url ? (
               <Button size="sm" variant="ghost" icon={<ExternalLink size={11} />} onClick={() => bridge.openExternal(video.youtube_url)}>
                 Watch
@@ -513,6 +643,14 @@ function VideoDrawer({
     if (!result.ok) toast.error("Could not reveal the file", result.error);
   };
 
+  const openOutputFolder = async () => {
+    if (!video.final_video_path) return;
+    const folder = video.final_video_path.replace(/[\\/][^\\/]+$/, "");
+    if (!folder) return;
+    const result = await bridge.openPath(folder);
+    if (!result.ok) toast.error("Could not open the output folder", result.error);
+  };
+
   const markPublished = async () => {
     if (!markUrl.startsWith("https://youtube.com/") && !markUrl.startsWith("https://www.youtube.com/") && !markUrl.startsWith("https://youtu.be/")) {
       toast.error("Enter a YouTube link", "The address must be a real YouTube video URL.");
@@ -541,6 +679,11 @@ function VideoDrawer({
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="neutral">{video.channel_name}</Badge>
             <StatusBadge status={video.production_status} />
+            {video.output_state ? (
+              <Badge tone={video.output_state === "FAILED" ? "rose" : video.output_state === "READY" ? "peach" : "sage"} dot>
+                Output: {video.output_state}
+              </Badge>
+            ) : null}
             {video.youtube_url ? <Badge tone="rose">On YouTube</Badge> : null}
             {video.is_demo ? <Badge tone="peach">Demo</Badge> : null}
           </div>
@@ -611,6 +754,9 @@ function VideoDrawer({
               <Button size="sm" variant="secondary" icon={<FolderOpen size={13} />} disabled={!video.final_video_path} onClick={() => void reveal(video.final_video_path)}>
                 Reveal file
               </Button>
+              <Button size="sm" variant="secondary" icon={<FolderOpen size={13} />} disabled={!video.final_video_path} onClick={() => void openOutputFolder()}>
+                Open output folder
+              </Button>
               <Button size="sm" variant="secondary" icon={<RefreshCw size={13} />} loading={refreshing} disabled={!video.has_video} onClick={() => void refreshMetadata()}>
                 Re-read metadata
               </Button>
@@ -650,6 +796,7 @@ function VideoDrawer({
               <div className="mt-2 space-y-2 text-[11px] leading-relaxed">
                 <PathLine label="Final file" value={video.final_video_path} onOpen={() => void reveal(video.final_video_path)} />
                 <PathLine label="Production package" value={video.production_package_path} onOpen={() => void reveal(video.production_package_path)} />
+                <PathLine label="Output state" value={video.output_state || "Not assigned"} />
                 <PathLine label="Source" value={video.source} />
                 <PathLine label="Imported" value={formatDateTime(video.created_at)} />
               </div>

@@ -5,6 +5,7 @@ dist-electron/
 backend-dist/
 release/
 build/icon-source.png
+build/pyinstaller/
 
 # Python
 backend/.venv/

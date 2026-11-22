@@ -313,6 +313,67 @@ function registerIpc(): void {
 
   ipcMain.handle("detect-claude", async () => detectClaude());
 
+  ipcMain.handle("detect-antigravity", async () => detectAntigravity());
+
+  ipcMain.handle("launch-agent", async (_event, payload: {
+    agent: "claude_code" | "antigravity" | "manual";
+    folder: string;
+    promptPath?: string;
+    prompt?: string;
+    path?: string;
+  }) => {
+    const folder = payload?.folder || "";
+    const customPath = (payload?.path || "").trim();
+    if (!folder || !fs.existsSync(folder)) {
+      return { ok: false, error: "The animation project folder does not exist yet." };
+    }
+    try {
+      if (payload.agent === "antigravity") {
+        const detection = await detectAntigravity();
+        const appPath = customPath && fs.existsSync(customPath) ? customPath : detection.path;
+        if (!appPath) {
+          return { ok: false, error: "Google Antigravity was not detected. Set its path in Animation Agents or open the folder manually." };
+        }
+        const child = spawn(appPath, [folder], { detached: true, stdio: "ignore", windowsHide: false });
+        child.unref();
+        return { ok: true, mode: "antigravity" };
+      }
+      if (payload.agent === "manual") {
+        const result = await shell.openPath(folder);
+        return result ? { ok: false, error: result } : { ok: true, mode: "manual" };
+      }
+      const detection = await detectClaude();
+      const cliPath = customPath && fs.existsSync(customPath) ? customPath : detection.cli.path;
+      if (!cliPath) {
+        return { ok: false, error: "The official Claude Code CLI was not detected. Install it and run `claude` once to sign in." };
+      }
+      const task = payload.promptPath
+        ? `Read and follow the Katha Studio production task at "${payload.promptPath}". Work inside "${folder}".`
+        : payload.prompt || "Read AGENTS.md and the latest handoff in episodes/ and continue the animation production.";
+      const launcher = path.join(app.getPath("temp"), `katha-claude-${Date.now()}.cmd`);
+      const content = [
+        "@echo off",
+        "title Katha Studio - Claude Code",
+        `cd /d "${folder.replace(/"/g, '""')}"`,
+        `"${cliPath}" "${task.replace(/"/g, '""')}"`,
+        "echo.",
+        "echo Claude Code has exited. This window stays open so you can read any message.",
+        "pause",
+      ].join("\r\n");
+      fs.writeFileSync(launcher, content, "utf8");
+      const child = spawn("cmd.exe", ["/c", "start", "", "cmd.exe", "/k", launcher], {
+        cwd: folder,
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false,
+      });
+      child.unref();
+      return { ok: true, mode: "claude_code", launcher };
+    } catch (error) {
+      return { ok: false, error: `Could not launch the animation agent: ${(error as Error).message}` };
+    }
+  });
+
   ipcMain.handle("launch-claude-desktop", async () => {
     const detection = await detectClaude();
     if (!detection.desktop.path) {
@@ -323,25 +384,26 @@ function registerIpc(): void {
     return { ok: true };
   });
 
-  ipcMain.handle("launch-claude-code", async (_event, folder: string) => {
+  ipcMain.handle("launch-claude-code", async (_event, folder: string, customPath?: string) => {
     if (!folder || !fs.existsSync(folder)) {
       return { ok: false, error: "The channel animation folder does not exist yet." };
     }
     const detection = await detectClaude();
-    if (!detection.cli.path) {
+    const cliPath = (customPath || "").trim() && fs.existsSync((customPath || "").trim()) ? (customPath || "").trim() : detection.cli.path;
+    if (!cliPath) {
       return { ok: false, error: "The official Claude Code CLI was not detected. Install and sign in to Claude Code first." };
     }
     try {
       const wt = findOnPath("wt.exe");
       if (wt) {
-        const child = spawn(wt, ["-d", folder, "cmd.exe", "/k", `"${detection.cli.path}"`], {
+        const child = spawn(wt, ["-d", folder, "cmd.exe", "/k", `"${cliPath}"`], {
           detached: true,
           stdio: "ignore",
           windowsHide: false,
         });
         child.unref();
       } else {
-        const child = spawn("cmd.exe", ["/c", "start", "", "cmd.exe", "/k", `"${detection.cli.path}"`], {
+        const child = spawn("cmd.exe", ["/c", "start", "", "cmd.exe", "/k", `"${cliPath}"`], {
           cwd: folder,
           detached: true,
           stdio: "ignore",
@@ -387,8 +449,18 @@ async function detectClaude(): Promise<{
   desktop: { installed: boolean; path: string };
   cli: { installed: boolean; path: string; version: string };
 }> {
+  const home = app.getPath("home");
+  const local = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+  const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
   const desktopPath = claudeDesktopCandidates().find((candidate) => fs.existsSync(candidate)) || "";
-  const cliPath = findOnPath("claude.exe") || findOnPath("claude.cmd") || "";
+  const cliCandidates = [
+    path.join(home, ".local", "bin", "claude.exe"),
+    path.join(home, ".local", "bin", "claude.cmd"),
+    path.join(appData, "npm", "claude.cmd"),
+    path.join(appData, "npm", "claude.exe"),
+    path.join(local, "Programs", "Claude", "claude.exe"),
+  ];
+  const cliPath = findOnPath("claude.exe") || findOnPath("claude.cmd") || cliCandidates.find((candidate) => fs.existsSync(candidate)) || "";
   let version = "";
   if (cliPath) {
     version = await new Promise<string>((resolve) => {
@@ -402,6 +474,36 @@ async function detectClaude(): Promise<{
     desktop: { installed: Boolean(desktopPath), path: desktopPath },
     cli: { installed: Boolean(cliPath), path: cliPath, version },
   };
+}
+
+async function detectAntigravity(): Promise<{ installed: boolean; path: string; version: string }> {
+  const home = app.getPath("home");
+  const local = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+  const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+  const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+  const candidates = [
+    path.join(local, "Programs", "Antigravity", "Antigravity.exe"),
+    path.join(local, "Programs", "antigravity", "Antigravity.exe"),
+    path.join(local, "Antigravity", "Antigravity.exe"),
+    path.join(local, "Google", "Antigravity", "Antigravity.exe"),
+    path.join(programFiles, "Google", "Antigravity", "Antigravity.exe"),
+    path.join(programFiles, "Antigravity", "Antigravity.exe"),
+    path.join(programFilesX86, "Google", "Antigravity", "Antigravity.exe"),
+  ];
+  const found = findOnPath("antigravity.exe") || candidates.find((candidate) => fs.existsSync(candidate)) || "";
+  let version = "";
+  if (found) {
+    version = await new Promise<string>((resolve) => {
+      const escaped = found.replace(/'/g, "''");
+      execFile(
+        "powershell",
+        ["-NoProfile", "-Command", `(Get-Item -LiteralPath '${escaped}').VersionInfo.ProductVersion`],
+        { timeout: 8000, windowsHide: true },
+        (error, stdout) => resolve(error ? "" : (stdout || "").trim())
+      );
+    });
+  }
+  return { installed: Boolean(found), path: found, version };
 }
 
 function killBackend(): void {

@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  Bot,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -11,12 +12,14 @@ import {
   ExternalLink,
   FileText,
   FolderOpen,
+  Globe2,
   HardDrive,
   KeyRound,
   Laptop,
   Loader2,
   Mic2,
   Monitor,
+  MonitorSmartphone,
   Play,
   RefreshCw,
   RotateCcw,
@@ -37,11 +40,15 @@ import { api, bridge } from "@/lib/api";
 import { useFetch } from "@/lib/useFetch";
 import { useAppStore } from "@/store/AppStore";
 import type {
+  AgentsPayload,
   AppSettings,
+  BrowserOverview,
   ClaudeStatus,
   DiagnosticsResult,
   Job,
+  McpServer,
   Provider,
+  Skill,
   SystemInfo,
 } from "@/lib/types";
 import {
@@ -99,14 +106,16 @@ const YOUTUBE_CATEGORIES = [
 
 const LANGUAGES = ["Hindi", "English", "Hinglish", "Tamil", "Telugu", "Bengali", "Marathi", "Gujarati", "Kannada", "Malayalam", "Punjabi", "Urdu"];
 
+type SettingsTab = "connections" | "production" | "studio" | "diagnostics";
+
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<"connections" | "studio" | "diagnostics">(() => {
+  const [tab, setTab] = useState<SettingsTab>(() => {
     const value = searchParams.get("tab");
-    return value === "studio" || value === "diagnostics" ? value : "connections";
+    return value === "production" || value === "studio" || value === "diagnostics" ? value : "connections";
   });
 
-  const changeTab = (value: "connections" | "studio" | "diagnostics") => {
+  const changeTab = (value: SettingsTab) => {
     setTab(value);
     const next = new URLSearchParams(searchParams);
     next.set("tab", value);
@@ -125,6 +134,7 @@ export function SettingsPage() {
             onChange={changeTab}
             tabs={[
               { id: "connections", label: "Connections" },
+              { id: "production", label: "Production" },
               { id: "studio", label: "Studio" },
               { id: "diagnostics", label: "Diagnostics" },
             ]}
@@ -133,6 +143,7 @@ export function SettingsPage() {
       />
 
       {tab === "connections" ? <ConnectionsTab /> : null}
+      {tab === "production" ? <ProductionTab /> : null}
       {tab === "studio" ? <StudioTab /> : null}
       {tab === "diagnostics" ? <DiagnosticsTab /> : null}
     </div>
@@ -938,6 +949,390 @@ function StudioTab() {
       <div className="rounded-xl bg-powder/35 px-4 py-3 text-[10px] leading-relaxed text-[#5b7088]">
         Job history and logs are stored locally. Secrets are redacted before they reach the log file. Cancelling a job
         asks it to stop at the next safe boundary; a provider request already in flight may still complete.
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ production */
+
+function ProductionTab() {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { channels, refreshChannels, dataVersion } = useAppStore();
+  const agents = useFetch<AgentsPayload>(() => api("/agents"), [dataVersion]);
+  const skills = useFetch<{ skills: Skill[]; library_path: string }>(() => api("/skills"), [dataVersion]);
+  const mcp = useFetch<{ servers: McpServer[] }>(() => api("/mcp"), [dataVersion]);
+  const browser = useFetch<BrowserOverview>(() => api("/browser"), [dataVersion]);
+
+  const [channelId, setChannelId] = useState<number | null>(channels[0]?.id ?? null);
+  const [folderForm, setFolderForm] = useState({ output_folder: "", watch_folder: "" });
+  const [savingFolders, setSavingFolders] = useState(false);
+  const [ensuring, setEnsuring] = useState(false);
+  const [savingAgents, setSavingAgents] = useState(false);
+  const [agentForm, setAgentForm] = useState({
+    selected_agent: "claude_code",
+    claude_path: "",
+    antigravity_path: "",
+    permission_mode: "acceptEdits",
+  });
+
+  useEffect(() => {
+    if (!channelId && channels.length) setChannelId(channels[0].id);
+  }, [channels, channelId]);
+
+  const channel = channels.find((item) => item.id === channelId) || null;
+
+  useEffect(() => {
+    setFolderForm({
+      output_folder: channel?.output_folder || "",
+      watch_folder: channel?.watch_folder || "",
+    });
+  }, [channel?.id, channel?.output_folder, channel?.watch_folder]);
+
+  useEffect(() => {
+    if (!agents.data?.settings) return;
+    setAgentForm({
+      selected_agent: agents.data.selected_agent || "claude_code",
+      claude_path: agents.data.settings.claude_path || "",
+      antigravity_path: agents.data.settings.antigravity_path || "",
+      permission_mode: agents.data.settings.permission_mode || "acceptEdits",
+    });
+  }, [agents.data?.selected_agent, agents.data?.settings]);
+
+  const saveAgentSettings = async () => {
+    setSavingAgents(true);
+    try {
+      await api("/agents/settings", { method: "PATCH", json: agentForm });
+      await agents.reload(true);
+      toast.success("Agent settings saved", "Detection paths and the selected agent are stored locally.");
+    } catch (error) {
+      toast.error("Could not save agent settings", errorMessage(error));
+    } finally {
+      setSavingAgents(false);
+    }
+  };
+
+  const saveFolders = async () => {
+    if (!channel) return;
+    setSavingFolders(true);
+    try {
+      await api(`/channels/${channel.id}`, {
+        method: "PATCH",
+        json: {
+          output_folder: folderForm.output_folder.trim() || null,
+          watch_folder: folderForm.watch_folder.trim() || null,
+        },
+      });
+      await refreshChannels();
+      toast.success("Channel folders saved", "READY, REVIEWED, PUBLISHED and FAILED are created inside the output folder.");
+    } catch (error) {
+      toast.error("Could not save the channel folders", errorMessage(error));
+    } finally {
+      setSavingFolders(false);
+    }
+  };
+
+  const ensureFolders = async () => {
+    if (!channel) return;
+    setEnsuring(true);
+    try {
+      const result = await api<{ created?: string[] }>(`/channels/${channel.id}/workspace/refresh`, { method: "POST" });
+      await refreshChannels();
+      toast.success("Workspace checked", result.created?.length ? `Created: ${result.created.join(", ")}` : "All permanent files and output folders are present.");
+    } catch (error) {
+      toast.error("Could not refresh the workspace", errorMessage(error));
+    } finally {
+      setEnsuring(false);
+    }
+  };
+
+  const installedAgents = (agents.data?.agents || []).filter((agent) => agent.installed);
+  const selectedAgent = (agents.data?.agents || []).find((agent) => agent.agent === agents.data?.selected_agent);
+  const skillList = skills.data?.skills || [];
+  const approvedSkills = skillList.filter((skill) => skill.approved).length;
+  const installedSkills = skillList.filter((skill) => (skill.installed_agents || []).length > 0).length;
+  const mcpServers = mcp.data?.servers || [];
+  const configuredMcp = mcpServers.filter((server) => server.status === "configured").length;
+  const browserAccounts = browser.data?.accounts || [];
+  const verifiedAccounts = browserAccounts.filter((account) => account.identity_verified).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="p-5">
+          <CardHeader
+            title="Animation agents"
+            subtitle="Detected locally. Credentials are managed by each app."
+            icon={<Bot size={16} />}
+            action={<Badge tone={installedAgents.length ? "sage" : "neutral"} dot>{installedAgents.length}/3 detected</Badge>}
+          />
+          <div className="mt-3 space-y-1.5">
+            {(agents.data?.agents || []).map((agent) => (
+              <div key={agent.agent} className="flex items-center justify-between gap-2 rounded-xl bg-white/55 px-2.5 py-2">
+                <div className="min-w-0">
+                  <p className="text-[10.5px] font-bold">{agent.label}</p>
+                  <p className="truncate font-mono text-[8.5px] text-muted/70">{agent.path || "Not detected"}</p>
+                </div>
+                <Badge tone={agent.installed ? "sage" : "neutral"} dot>{agent.installed ? "Ready" : "Missing"}</Badge>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[10px] leading-relaxed text-muted">
+            Selected now: <strong className="text-ink">{selectedAgent?.label || "Manual"}</strong>.{" "}
+            {(agents.data?.active_locks || []).length
+              ? `${agents.data?.active_locks.length} active lock(s) prevent conflicting handoffs.`
+              : "No active locks."}
+          </p>
+          <Button className="mt-3" size="sm" variant="secondary" icon={<ArrowRight size={12} />} onClick={() => navigate("/agents")}>
+            Manage agents & locks
+          </Button>
+        </Card>
+
+        <Card className="p-5">
+          <CardHeader
+            title="Skills & MCP"
+            subtitle="Shared library, reviewed before installation."
+            icon={<Sparkles size={16} />}
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-lavender/35 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">{skillList.length}</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">Skills · {approvedSkills} approved</p>
+            </div>
+            <div className="rounded-xl bg-sage/35 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">{installedSkills}</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">Installed in projects</p>
+            </div>
+            <div className="rounded-xl bg-powder/40 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">{mcpServers.length}</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">MCP servers · {configuredMcp} configured</p>
+            </div>
+            <div className="rounded-xl bg-peach/35 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">0</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">Secrets stored by Katha</p>
+            </div>
+          </div>
+          <p className="mt-3 text-[10px] leading-relaxed text-muted">
+            Imported skills stay unapproved until you inspect their files, scripts, dependencies and permission hints.
+            MCP environment values are never stored — only variable names.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <Button size="sm" variant="secondary" onClick={() => navigate("/agents?tab=skills")}>
+              Skills library
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => navigate("/agents?tab=mcp")}>
+              MCP servers
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <CardHeader
+            title="Browser accounts"
+            subtitle="Isolated Chromium profiles, manual sign-in."
+            icon={<MonitorSmartphone size={16} />}
+            action={<Badge tone={browser.data?.runtime.automation_available ? "sage" : "peach"} dot>{browser.data?.runtime.automation_available ? "Automation ready" : "Manual only"}</Badge>}
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-rose/25 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">{browserAccounts.filter((account) => account.platform === "youtube").length}</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">YouTube profiles</p>
+            </div>
+            <div className="rounded-xl bg-clay/20 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">{browserAccounts.filter((account) => account.platform === "instagram").length}</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">Instagram profiles</p>
+            </div>
+            <div className="rounded-xl bg-sage/35 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">{verifiedAccounts}</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">Identity verified</p>
+            </div>
+            <div className="rounded-xl bg-white/55 px-3 py-2.5">
+              <p className="text-[18px] font-bold leading-none">{browser.data?.jobs.filter((job) => job.status === "published").length || 0}</p>
+              <p className="mt-1 text-[9.5px] font-semibold text-muted">Confirmed publishes</p>
+            </div>
+          </div>
+          <p className="mt-3 text-[10px] leading-relaxed text-muted">
+            Katha never stores social passwords, cookies or tokens. Identity must be verified before an upload, and the
+            final publish waits for explicit confirmation.
+          </p>
+          <Button className="mt-3" size="sm" variant="secondary" icon={<ArrowRight size={12} />} onClick={() => navigate("/browser")}>
+            Manage browser accounts
+          </Button>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card className="p-6">
+          <CardHeader
+            title="Agent detection & permissions"
+            subtitle="Official CLIs and apps only. Leave paths empty to auto-detect."
+            icon={<Terminal size={16} />}
+          />
+          <div className="mt-4 space-y-3">
+            <Field label="Selected animation agent">
+              <Select
+                value={agentForm.selected_agent}
+                onChange={(event) => setAgentForm((value) => ({ ...value, selected_agent: event.target.value }))}
+              >
+                {(agents.data?.agents || []).map((agent) => (
+                  <option key={agent.agent} value={agent.agent}>
+                    {agent.label} {agent.installed ? "" : "(not detected)"}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Claude Code CLI path" hint="Auto-detected from PATH and your local Claude install.">
+              <Input
+                value={agentForm.claude_path}
+                placeholder="C:\\Users\\you\\.local\\bin\\claude.exe"
+                onChange={(event) => setAgentForm((value) => ({ ...value, claude_path: event.target.value }))}
+                className="font-mono text-[10.5px]"
+              />
+            </Field>
+            <Field label="Antigravity application path" hint="Auto-detected from the standard install locations.">
+              <Input
+                value={agentForm.antigravity_path}
+                placeholder="C:\\Users\\you\\AppData\\Local\\Programs\\Antigravity\\Antigravity.exe"
+                onChange={(event) => setAgentForm((value) => ({ ...value, antigravity_path: event.target.value }))}
+                className="font-mono text-[10.5px]"
+              />
+            </Field>
+            <Field label="Claude headless permission mode" hint="Used only for captured background runs.">
+              <Select
+                value={agentForm.permission_mode}
+                onChange={(event) => setAgentForm((value) => ({ ...value, permission_mode: event.target.value }))}
+              >
+                {(agents.data?.permission_modes || ["default", "acceptEdits", "plan"]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button loading={savingAgents} icon={<Save size={13} />} onClick={() => void saveAgentSettings()}>
+                Save agent settings
+              </Button>
+              <Button variant="secondary" icon={<RefreshCw size={13} />} onClick={() => void agents.reload()}>
+                Re-detect
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <CardHeader
+            title="Channel project & output folders"
+            subtitle="One permanent animation project and one shared output folder per channel."
+            icon={<FolderOpen size={16} />}
+            action={
+              <Select
+                value={channelId || ""}
+                onChange={(event) => setChannelId(Number(event.target.value) || null)}
+                className="w-[170px] py-1.5 text-[11px]"
+              >
+                {channels.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </Select>
+            }
+          />
+          {channel ? (
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl bg-white/55 px-3 py-2">
+                <p className="text-[8.5px] font-bold uppercase tracking-[0.08em] text-muted/60">Permanent animation project</p>
+                <div className="flex items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate font-mono text-[9.5px] text-ink/60">{channel.animation_project_path || "Not created yet"}</p>
+                  <IconButton
+                    label="Open animation project"
+                    disabled={!channel.animation_project_path}
+                    onClick={() => void bridge.openPath(channel.animation_project_path || "")}
+                  >
+                    <FolderOpen size={12} />
+                  </IconButton>
+                </div>
+              </div>
+              <Field label="Finished video output folder" hint="READY, REVIEWED, PUBLISHED and FAILED are created inside it.">
+                <div className="flex gap-2">
+                  <Input
+                    value={folderForm.output_folder}
+                    onChange={(event) => setFolderForm((value) => ({ ...value, output_folder: event.target.value }))}
+                    placeholder="Choose the channel output folder"
+                    className="font-mono text-[10.5px]"
+                  />
+                  <Button
+                    variant="secondary"
+                    icon={<FolderOpen size={13} />}
+                    onClick={async () => {
+                      const chosen = await bridge.pickFolder("Choose the channel output folder");
+                      if (chosen) setFolderForm((value) => ({ ...value, output_folder: chosen }));
+                    }}
+                  >
+                    Pick
+                  </Button>
+                </div>
+              </Field>
+              <Field label="Extra watch folder (optional)" hint="An agent or editor can render here too.">
+                <div className="flex gap-2">
+                  <Input
+                    value={folderForm.watch_folder}
+                    onChange={(event) => setFolderForm((value) => ({ ...value, watch_folder: event.target.value }))}
+                    placeholder="Choose an additional watch folder"
+                    className="font-mono text-[10.5px]"
+                  />
+                  <Button
+                    variant="secondary"
+                    icon={<FolderOpen size={13} />}
+                    onClick={async () => {
+                      const chosen = await bridge.pickFolder("Choose a watch folder");
+                      if (chosen) setFolderForm((value) => ({ ...value, watch_folder: chosen }));
+                    }}
+                  >
+                    Pick
+                  </Button>
+                </div>
+              </Field>
+              <div className="flex flex-wrap gap-1.5">
+                {["READY", "REVIEWED", "PUBLISHED", "FAILED"].map((state) => (
+                  <button
+                    key={state}
+                    type="button"
+                    disabled={!channel.output_folder}
+                    onClick={() => {
+                      if (!channel.output_folder) return;
+                      void bridge.openPath(`${channel.output_folder}\\${state}`);
+                    }}
+                    className="rounded-full bg-white/70 px-2.5 py-1 text-[9px] font-bold text-ink/60 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {state}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button loading={savingFolders} icon={<Save size={13} />} onClick={() => void saveFolders()}>
+                  Save channel folders
+                </Button>
+                <Button variant="secondary" loading={ensuring} icon={<RefreshCw size={13} />} onClick={() => void ensureFolders()}>
+                  Ensure folders
+                </Button>
+                <Button variant="ghost" icon={<ArrowRight size={13} />} onClick={() => navigate("/channels")}>
+                  Edit channel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <EmptyState compact title="No channel yet" message="Create a channel to prepare its permanent animation project and shared output folders." />
+          )}
+        </Card>
+      </div>
+
+      <div className="rounded-xl bg-powder/35 px-4 py-3 text-[10px] leading-relaxed text-[#5b7088]">
+        <strong className="text-ink">Safety:</strong> agent handoffs are locked per project and episode; the watcher only
+        imports a stable, FFprobe-validated video and never deletes the original; browser publishing stops at CAPTCHA,
+        2FA or an unverified identity and records a real failure instead of a fake success.
       </div>
     </div>
   );

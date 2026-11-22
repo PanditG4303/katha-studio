@@ -75,3 +75,11 @@ def seed_defaults(db: Session) -> None:
 
     for path in DEFAULT_DIRS.values():
         Path(path).mkdir(parents=True, exist_ok=True)
+
+    # New in the animation-agent upgrade. Both are idempotent and preserve
+    # existing rows, profiles and user edits.
+    from .services.browser_manager import ensure_profiles
+    from .services.skills import ensure_builtin_skills
+
+    ensure_builtin_skills(db)
+    ensure_profiles(db)

@@ -23,7 +23,7 @@ import {
 import { api, bridge } from "@/lib/api";
 import { useFetch } from "@/lib/useFetch";
 import { useAppStore } from "@/store/AppStore";
-import type { Channel, ClaudeStatus, Project, ProjectSummary } from "@/lib/types";
+import type { AgentHandoff, AgentsPayload, Channel, ClaudeStatus, Project, ProjectSummary } from "@/lib/types";
 import { cn, errorMessage, formatDate, statusLabel } from "@/lib/utils";
 import { PageHeader } from "@/components/AppShell";
 import {
@@ -54,8 +54,10 @@ export function AnimationStudioPage() {
   const [rescanning, setRescanning] = useState(false);
   const [promptProject, setPromptProject] = useState<ProjectSummary | null>(null);
   const [promptText, setPromptText] = useState("");
+  const [handoffBusy, setHandoffBusy] = useState<number | null>(null);
 
   const claude = useFetch<ClaudeStatus>(() => api("/system/claude"), [dataVersion]);
+  const agents = useFetch<AgentsPayload>(() => api("/agents"), [dataVersion]);
   const projects = useFetch<{ projects: ProjectSummary[] }>(
     () => api(`/projects?limit=200${channelId ? `&channel_id=${channelId}` : ""}`),
     [channelId, dataVersion],
@@ -88,11 +90,42 @@ export function AnimationStudioPage() {
     }
     setLaunching(true);
     try {
-      const result = await bridge.launchClaudeCode(channel.animation_project_path);
-      if (result.ok) toast.success("Claude Code opened", "Use the generated master prompt inside the channel project.");
+      const result = await bridge.launchClaudeCode(
+        channel.animation_project_path,
+        agents.data?.settings.claude_path || "",
+      );
+      if (result.ok) toast.success("Claude Code opened", "Use the prepared production task inside the channel project.");
       else toast.error("Could not launch Claude Code", result.error);
     } finally {
       setLaunching(false);
+    }
+  };
+
+  const startHandoff = async (project: ProjectSummary) => {
+    const agent = agents.data?.selected_agent || "claude_code";
+    setHandoffBusy(project.id);
+    try {
+      const mode = agent === "claude_code" ? "terminal" : "manual";
+      const handoff = await api<AgentHandoff>("/agents/handoffs", {
+        method: "POST",
+        json: { project_id: project.id, agent, mode, confirm: true },
+      });
+      try {
+        await api(`/agents/handoffs/${handoff.id}/launch`, { method: "POST", json: { mode } });
+      } catch (launchError) {
+        toast.error("Handoff prepared, but the agent did not open", errorMessage(launchError));
+        navigate("/agents");
+        return;
+      }
+      toast.success(
+        `${handoff.agent_label} handoff started`,
+        "The real project, package and production task are in the handoff folder. The episode is locked until you finish.",
+      );
+      navigate("/agents");
+    } catch (error) {
+      toast.error("Could not start the handoff", errorMessage(error));
+    } finally {
+      setHandoffBusy(null);
     }
   };
 
@@ -153,12 +186,15 @@ export function AnimationStudioPage() {
     <div className="animate-float-in">
       <PageHeader
         eyebrow="The handoff room"
-        title="Claude Animation Studio"
-        description="A real folder handoff, not fake automation. Each channel keeps one permanent animation project; each story gets a complete production package."
+        title="Animation Studio"
+        description="Claude Code, Google Antigravity and manual production share one permanent animation project per channel. Each story gets a complete production package; each episode is locked to one agent at a time."
         actions={
           <>
             <Button variant="secondary" icon={<RefreshCw size={14} />} loading={rescanning} onClick={() => void rescan()}>
               Scan output folders
+            </Button>
+            <Button variant="secondary" icon={<Layers size={14} />} onClick={() => navigate("/agents")}>
+              Manage agents
             </Button>
             <Button icon={<Terminal size={14} />} loading={launching} onClick={() => void launchClaudeCode()}>
               Open Claude Code
@@ -167,7 +203,7 @@ export function AnimationStudioPage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-4">
         <DetectionCard
           icon={<Monitor size={17} />}
           title="Claude Desktop"
@@ -203,11 +239,40 @@ export function AnimationStudioPage() {
         />
         <DetectionCard
           icon={<Layers size={17} />}
-          title="Handoff method"
-          ok
-          value="Folder + master prompt"
-          detail="No credentials are read. No prompts are injected into Claude Desktop. The generated package is the contract."
-          action={<Badge tone="sage">Official tools only</Badge>}
+          title="Antigravity"
+          ok={Boolean(agents.data?.agents.find((agent) => agent.agent === "antigravity")?.installed)}
+          value={agents.data?.agents.find((agent) => agent.agent === "antigravity")?.installed ? "Installed" : "Not detected"}
+          detail={agents.data?.agents.find((agent) => agent.agent === "antigravity")?.path || "Install Google Antigravity or use the manual handoff."}
+          action={
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!agents.data?.agents.find((agent) => agent.agent === "antigravity")?.installed}
+              onClick={async () => {
+                const result = await bridge.launchAgent({
+                  agent: "antigravity",
+                  folder: channel?.animation_project_path || "",
+                  path: agents.data?.settings.antigravity_path || "",
+                });
+                if (result.ok) toast.success("Antigravity opened", "Open the prepared PRODUCTION_TASK.md in the handoff folder.");
+                else toast.error("Could not open Antigravity", result.error);
+              }}
+            >
+              Open
+            </Button>
+          }
+        />
+        <DetectionCard
+          icon={<Layers size={17} />}
+          title="Selected handoff agent"
+          ok={Boolean(agents.data?.agents.find((agent) => agent.agent === agents.data?.selected_agent)?.installed)}
+          value={agents.data?.agents.find((agent) => agent.agent === agents.data?.selected_agent)?.label || "Manual"}
+          detail={
+            agents.data?.active_locks.length
+              ? `${agents.data.active_locks.length} active lock(s). A conflicting handoff is refused.`
+              : "No active locks. The selected agent can start."
+          }
+          action={<Badge tone={agents.data?.active_locks.length ? "peach" : "sage"}>{agents.data?.active_locks.length ? "Locked" : "Ready"}</Badge>}
         />
       </div>
 
@@ -296,10 +361,10 @@ export function AnimationStudioPage() {
               {[
                 { title: "Approve & voice", text: "Finish the script and generate final dialogue audio." },
                 { title: "Package", text: "Katha writes the complete production package with timelines, subtitles, audio and prompts." },
-                { title: "Open the project", text: "Launch Claude Code in the permanent channel folder. Sign-in is handled by Anthropic." },
-                { title: "Use the prompt", text: "Open MASTER_ANIMATION_PROMPT.md from the package. Paste or reference it in Claude." },
-                { title: "Render", text: "Claude builds the animation and saves the final video into the output folder." },
-                { title: "Import", text: "Katha validates the new video with FFprobe and adds it to the library." },
+                { title: "Choose an agent", text: "Claude Code, Antigravity or manual production. All three read the same permanent project." },
+                { title: "Start a locked handoff", text: "Katha prepares the real task and refuses a second agent on the same project or episode." },
+                { title: "Render", text: "The agent builds the animation and saves the final video into the output folder, preferably READY." },
+                { title: "Import", text: "Katha validates the new video with FFprobe and adds it to the library without deleting the original." },
               ].map((step, index) => (
                 <li key={step.title} className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-[9px] font-bold text-ink/50">
@@ -386,18 +451,10 @@ export function AnimationStudioPage() {
                         <Button
                           size="sm"
                           icon={<Play size={11} />}
-                          onClick={async () => {
-                            if (project.status === "READY_FOR_CLAUDE" || project.status === "VOICE_READY") {
-                              try {
-                                await api(`/projects/${project.id}`, { method: "PATCH", json: { status: "ANIMATION_IN_PROGRESS" } });
-                              } catch {
-                                // status is informational; launching still works
-                              }
-                            }
-                            await launchClaudeCode();
-                          }}
+                          loading={handoffBusy === project.id}
+                          onClick={() => void startHandoff(project)}
                         >
-                          Start in Claude
+                          Start with {agents.data?.agents.find((agent) => agent.agent === (agents.data?.selected_agent || "claude_code"))?.label || "agent"}
                         </Button>
                       ) : (
                         <Button size="sm" variant="secondary" onClick={() => navigate(`/scripts?project=${project.id}`)}>
@@ -420,8 +477,8 @@ export function AnimationStudioPage() {
               <div>
                 <p className="text-[11.5px] font-bold">{channel?.output_folder || "No output folder configured"}</p>
                 <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
-                  New MP4, MOV, M4V or WebM files are validated with FFprobe, thumbnailed and imported. Duplicates are
-                  rejected by file path.
+                  New MP4, MOV, M4V or WebM files in the output root, READY, REVIEWED, PUBLISHED or FAILED are validated with
+                  FFprobe, thumbnailed and imported. Duplicates are rejected by file path and originals are never deleted.
                 </p>
               </div>
               <Button size="sm" variant="secondary" icon={<RefreshCw size={12} />} loading={rescanning} onClick={() => void rescan()}>

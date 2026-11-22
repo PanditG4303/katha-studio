@@ -13,6 +13,8 @@ import { CreateContentPage } from "@/pages/CreateContentPage";
 import { ScriptStudioPage } from "@/pages/ScriptStudioPage";
 import { VoiceMusicPage } from "@/pages/VoiceMusicPage";
 import { AnimationStudioPage } from "@/pages/AnimationStudioPage";
+import { AnimationAgentsPage } from "@/pages/AnimationAgentsPage";
+import { BrowserManagerPage } from "@/pages/BrowserManagerPage";
 import { VideoLibraryPage } from "@/pages/VideoLibraryPage";
 import { PublishingPage } from "@/pages/PublishingPage";
 import { CalendarPage } from "@/pages/CalendarPage";
@@ -32,8 +34,10 @@ export function App() {
                 <Route path="/scripts" element={<ScriptStudioPage />} />
                 <Route path="/voice" element={<VoiceMusicPage />} />
                 <Route path="/animation" element={<AnimationStudioPage />} />
+                <Route path="/agents" element={<AnimationAgentsPage />} />
                 <Route path="/videos" element={<VideoLibraryPage />} />
                 <Route path="/publishing" element={<PublishingPage />} />
+                <Route path="/browser" element={<BrowserManagerPage />} />
                 <Route path="/calendar" element={<CalendarPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

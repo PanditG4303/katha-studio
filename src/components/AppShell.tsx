@@ -3,11 +3,13 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   AudioLines,
+  Bot,
   CalendarDays,
   Clapperboard,
   Feather,
   Film,
   LayoutDashboard,
+  MonitorSmartphone,
   Plus,
   Radio,
   Send,
@@ -31,9 +33,11 @@ const navigation = [
   { to: "/create", label: "Create Content", icon: Sparkles },
   { to: "/scripts", label: "Story & Script Studio", icon: Feather },
   { to: "/voice", label: "Voice & Music Lab", icon: AudioLines },
-  { to: "/animation", label: "Claude Animation", icon: Film },
+  { to: "/animation", label: "Animation Studio", icon: Film },
+  { to: "/agents", label: "Animation Agents", icon: Bot },
   { to: "/videos", label: "Video Library", icon: Clapperboard },
   { to: "/publishing", label: "Publishing Manager", icon: Send },
+  { to: "/browser", label: "Browser Accounts", icon: MonitorSmartphone },
   { to: "/calendar", label: "Content Calendar", icon: CalendarDays },
 ];
 
@@ -45,9 +49,11 @@ const pageTitles: Record<string, string> = {
   "/create": "Create Content",
   "/scripts": "Story & Script Studio",
   "/voice": "Voice & Music Lab",
-  "/animation": "Claude Animation Studio",
+  "/animation": "Animation Studio",
+  "/agents": "Animation Agents",
   "/videos": "Video Library",
   "/publishing": "Publishing Manager",
+  "/browser": "Browser Accounts",
   "/calendar": "Content Calendar",
   "/settings": "Connections & Settings",
 };
@@ -328,17 +334,17 @@ export function AppShell() {
                 confirmation from YouTube, backups and logs.
               </p>
               <p>
-                <strong className="text-ink">Handoff:</strong> Claude Desktop and Claude Code are detected, never
-                automated with fake prompt injection. You open the permanent channel folder and use the generated
-                master prompt yourself.
+                <strong className="text-ink">Handoff:</strong> Claude Code, Google Antigravity and manual production share
+                one permanent channel project. Claude Code uses its official CLI; Antigravity opens the real folder. Katha
+                never injects fake prompts or reads credentials.
               </p>
               <p>
                 <strong className="text-ink">Needs your accounts:</strong> OpenCode Zen, OpenRouter, ElevenLabs and
                 YouTube. Demo mode is clearly labelled and generates fictional sample material, not researched facts.
               </p>
               <p className="rounded-xl bg-peach/50 px-3 py-2 text-[11.5px] text-[#8a5f48]">
-                Instagram is a manual workflow. Katha Studio prepares the caption and file, but never claims to publish
-                automatically.
+                Instagram is available through a manual workflow and a guided, isolated browser profile. Katha fills the
+                real website but never claims success until the website confirms it.
               </p>
               <div className="flex justify-end">
                 <Button size="sm" onClick={() => setHelpOpen(false)}>

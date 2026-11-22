@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   CalendarClock,
@@ -102,6 +102,7 @@ const LANGUAGES = [
 
 export function PublishingPage() {
   const toast = useToast();
+  const navigate = useNavigate();
   const { channels, settings, dataVersion, refreshSettings } = useAppStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<"youtube" | "instagram" | "activity">(() => {
@@ -202,7 +203,7 @@ export function PublishingPage() {
       <PageHeader
         eyebrow="Out into the world"
         title="Publishing Manager"
-        description="Official YouTube OAuth uploads, real scheduling confirmation, and an honest manual Instagram workflow. Nothing is published without your explicit confirmation."
+        description="Official YouTube OAuth uploads, real scheduling confirmation, and two honest Instagram paths: a prepared manual workflow or a guided, isolated browser profile. Nothing is published without your explicit confirmation."
         actions={
           <>
             <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={() => void refreshAll()}>
@@ -484,18 +485,19 @@ export function PublishingPage() {
 
           <div className="space-y-4">
             <Card className="p-6">
-              <p className="eyebrow">Why this is manual</p>
-              <h3 className="display mt-1 text-[23px]">Instagram has no official publishing API in Katha Studio</h3>
+              <p className="eyebrow">Two honest paths</p>
+              <h3 className="display mt-1 text-[23px]">Post manually, or use a guided isolated browser</h3>
               <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
-                Katha Studio prepares everything you need — caption, hashtags, file location and a planned time — but you
-                post from the Instagram app or website yourself. No fake automation, no stored Instagram password.
+                Katha Studio has no configured official Instagram publishing API. You can prepare everything and post
+                yourself, or use a dedicated browser profile: Katha verifies the signed-in account, fills the real
+                Instagram page, and stops before the final post for your confirmation. No stored Instagram password.
               </p>
               <ol className="mt-4 space-y-2.5">
                 {[
-                  "Choose a finished video and write the caption.",
-                  "Katha saves a manual_ready publication with the file path.",
-                  "Copy the caption and open the file location.",
-                  "Post it yourself, then mark it posted with the real link.",
+                  "Choose a finished vertical video and write the caption.",
+                  "Prepare a manual post, or open Browser Accounts and use a verified Instagram profile.",
+                  "The guided browser fills the caption and file, then waits for your explicit confirmation.",
+                  "Katha records success only when Instagram itself confirms the post.",
                 ].map((step, index) => (
                   <li key={step} className="flex gap-2.5 text-[11px] leading-relaxed text-muted">
                     <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ink/[0.06] text-[8.5px] font-bold text-ink/50">
@@ -505,6 +507,14 @@ export function PublishingPage() {
                   </li>
                 ))}
               </ol>
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                <Button size="sm" variant="secondary" icon={<Upload size={12} />} onClick={() => navigate("/browser")}>
+                  Open Browser Accounts
+                </Button>
+                <Button size="sm" variant="ghost" icon={<Plus size={12} />} onClick={() => { setInstagramVideoId(null); setInstagramOpen(true); }}>
+                  Prepare manual post
+                </Button>
+              </div>
             </Card>
             <Card className="p-6">
               <p className="eyebrow">Format reminder</p>

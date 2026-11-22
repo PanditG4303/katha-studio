@@ -17,6 +17,7 @@ $entry = Join-Path $root "backend\run_backend.py"
   --distpath "$root\backend-dist" --workpath "$root\build\pyinstaller" --specpath "$root\build" `
   --add-data "$resources;app\resources" `
   --collect-all keyring --collect-all keyring.backends `
+  --collect-all playwright `
   --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto `
   --hidden-import uvicorn.protocols.websockets.auto --hidden-import uvicorn.lifespan.on `
   $entry

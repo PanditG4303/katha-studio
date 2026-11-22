@@ -244,6 +244,10 @@ class VideoUpdate(BaseModel):
     published_at: Optional[datetime] = None
     subtitle_path: Optional[str] = None
     thumbnail_path: Optional[str] = None
+    output_state: Optional[str] = None
+    selected_agent: Optional[str] = None
+    browser_account_id: Optional[int] = None
+    platform_url: Optional[str] = None
     archived: Optional[bool] = None
 
 
@@ -253,6 +257,7 @@ class VideoBulkUpdate(BaseModel):
     production_status: Optional[str] = None
     platform: Optional[str] = None
     category: Optional[str] = None
+    output_state: Optional[str] = None
     archived: Optional[bool] = None
     tags: Optional[list[str]] = None
 
@@ -263,6 +268,7 @@ class VideoImportRequest(BaseModel):
     project_id: Optional[int] = None
     title: Optional[str] = None
     source: str = "manual"
+    output_state: str = ""
     wait_for_stable: bool = False
 
 
@@ -363,6 +369,86 @@ class PackageGenerateRequest(BaseModel):
     project_id: Optional[int] = None
     include_audio: bool = True
     overwrite: bool = False
+
+
+# --------------------------------------------------------------------------- animation agents
+class AgentSettingsUpdate(BaseModel):
+    selected_agent: Optional[str] = None
+    claude_path: Optional[str] = None
+    antigravity_path: Optional[str] = None
+    permission_mode: Optional[str] = None
+    keep_terminal_open: Optional[bool] = None
+
+
+class HandoffLaunchRequest(BaseModel):
+    mode: Optional[Literal["terminal", "headless", "manual"]] = None
+    permission_mode: Optional[str] = None
+
+
+class HandoffRequest(BaseModel):
+    project_id: int
+    episode_id: Optional[int] = None
+    agent: Optional[str] = None
+    mode: Literal["prepare", "manual", "terminal", "headless"] = "prepare"
+    permission_mode: Optional[str] = None
+    confirm: bool = True
+
+
+class SkillInstallRequest(BaseModel):
+    channel_id: int
+    agents: list[str] = Field(default_factory=lambda: ["claude_code", "antigravity", "manual"])
+
+
+class SkillImportRequest(BaseModel):
+    path: str
+    name: str = ""
+    description: str = ""
+
+
+class SkillApproveRequest(BaseModel):
+    approved: bool = True
+
+
+class McpCreateRequest(BaseModel):
+    name: str
+    transport: Literal["stdio", "http", "sse"] = "stdio"
+    command: str = ""
+    args: list[str] = Field(default_factory=list)
+    url: str = ""
+    env_keys: list[str] = Field(default_factory=list)
+    target_agent: str = "claude_code"
+    channel_id: Optional[int] = None
+    write_to_project: bool = True
+
+
+# --------------------------------------------------------------------------- browser accounts
+class BrowserAccountCreate(BaseModel):
+    platform: Literal["youtube", "instagram"] = "youtube"
+    label: str
+
+
+class BrowserAccountUpdate(BaseModel):
+    label: Optional[str] = None
+    archived: Optional[bool] = None
+
+
+class BrowserOpenRequest(BaseModel):
+    headless: bool = False
+
+
+class BrowserPublishRequest(BaseModel):
+    video_id: int
+    browser_account_id: int
+    title: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    visibility: Literal["private", "unlisted", "public"] = "private"
+    scheduled_at: Optional[datetime] = None
+    confirm: bool = True
+
+
+class BrowserConfirmRequest(BaseModel):
+    confirm: bool = True
 
 
 # --------------------------------------------------------------------------- misc

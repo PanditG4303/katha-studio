@@ -335,6 +335,10 @@ class Video(Base, TimestampMixin):
     source: Mapped[str] = mapped_column(String(40), default="watch_folder")
     file_size: Mapped[int] = mapped_column(Integer, default=0)
     file_mtime: Mapped[float] = mapped_column(Float, default=0)
+    selected_agent: Mapped[str] = mapped_column(String(40), default="")
+    browser_account_id: Mapped[Optional[int]] = mapped_column(Integer)
+    platform_url: Mapped[str] = mapped_column(String(1000), default="")
+    output_state: Mapped[str] = mapped_column(String(40), default="")
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -454,3 +458,138 @@ class AppSetting(Base, TimestampMixin):
 
     key: Mapped[str] = mapped_column(String(200), primary_key=True)
     value: Mapped[Any] = mapped_column(JSON)
+
+
+# ---------------------------------------------------------------- animation agents
+class AgentHandoff(Base, TimestampMixin):
+    """A real production handoff to Claude Code, Antigravity or manual mode."""
+
+    __tablename__ = "agent_handoffs"
+    __table_args__ = (Index("ix_agent_handoffs_project", "project_id", "status"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    channel_id: Mapped[Optional[int]] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    episode_id: Mapped[Optional[int]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"))
+    agent: Mapped[str] = mapped_column(String(40), default="claude_code", index=True)
+    mode: Mapped[str] = mapped_column(String(40), default="prepare")
+    status: Mapped[str] = mapped_column(String(40), default="prepared", index=True)
+    working_dir: Mapped[str] = mapped_column(String(1000), default="")
+    package_path: Mapped[str] = mapped_column(String(1000), default="")
+    prompt_path: Mapped[str] = mapped_column(String(1000), default="")
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    command: Mapped[str] = mapped_column(String(2000), default="")
+    pid: Mapped[Optional[int]] = mapped_column(Integer)
+    exit_code: Mapped[Optional[int]] = mapped_column(Integer)
+    output: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(Text, default="")
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+
+class ProjectLock(Base, TimestampMixin):
+    """Cooperative project/episode lock shared by every animation agent."""
+
+    __tablename__ = "project_locks"
+    __table_args__ = (Index("ix_project_locks_active", "status", "project_id", "episode_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scope: Mapped[str] = mapped_column(String(40), default="project")
+    channel_id: Mapped[Optional[int]] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    episode_id: Mapped[Optional[int]] = mapped_column(ForeignKey("episodes.id", ondelete="SET NULL"))
+    agent: Mapped[str] = mapped_column(String(40), default="")
+    handoff_id: Mapped[Optional[int]] = mapped_column(ForeignKey("agent_handoffs.id", ondelete="SET NULL"))
+    owner_token: Mapped[str] = mapped_column(String(120), default="")
+    status: Mapped[str] = mapped_column(String(40), default="active", index=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+    acquired_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    released_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+
+class Skill(Base, TimestampMixin):
+    __tablename__ = "skills"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[str] = mapped_column(String(40), default="1.0.0")
+    source: Mapped[str] = mapped_column(String(40), default="builtin")
+    path: Mapped[str] = mapped_column(String(1000), default="")
+    compatible_agents: Mapped[list] = mapped_column(JSON, default=list)
+    required_tools: Mapped[list] = mapped_column(JSON, default=list)
+    permissions: Mapped[list] = mapped_column(JSON, default=list)
+    installed_agents: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(40), default="available")
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+
+
+class McpServer(Base, TimestampMixin):
+    __tablename__ = "mcp_servers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    transport: Mapped[str] = mapped_column(String(40), default="stdio")
+    command: Mapped[str] = mapped_column(String(1000), default="")
+    args: Mapped[list] = mapped_column(JSON, default=list)
+    url: Mapped[str] = mapped_column(String(1000), default="")
+    env_keys: Mapped[list] = mapped_column(JSON, default=list)
+    agents: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(40), default="configured")
+    source_path: Mapped[str] = mapped_column(String(1000), default="")
+    error: Mapped[str] = mapped_column(Text, default="")
+    last_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+# ---------------------------------------------------------------- browser accounts
+class BrowserAccount(Base, TimestampMixin):
+    __tablename__ = "browser_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[str] = mapped_column(String(40), default="youtube", index=True)
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    profile_dir: Mapped[str] = mapped_column(String(1000), default="")
+    status: Mapped[str] = mapped_column(String(40), default="not_opened")
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    last_check_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    detected_identity: Mapped[str] = mapped_column(String(300), default="")
+    identity_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    error: Mapped[str] = mapped_column(Text, default="")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+
+
+class BrowserPublish(Base, TimestampMixin):
+    """A browser-driven publishing attempt. Status is only advanced on real confirmation."""
+
+    __tablename__ = "browser_publishes"
+    __table_args__ = (Index("ix_browser_publishes_status", "status", "platform"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    browser_account_id: Mapped[int] = mapped_column(ForeignKey("browser_accounts.id", ondelete="CASCADE"), nullable=False)
+    platform: Mapped[str] = mapped_column(String(40), default="youtube")
+    action: Mapped[str] = mapped_column(String(40), default="publish")
+    status: Mapped[str] = mapped_column(String(40), default="queued")
+    stage: Mapped[str] = mapped_column(String(80), default="Queued")
+    title: Mapped[str] = mapped_column(String(300), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    visibility: Mapped[str] = mapped_column(String(40), default="private")
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    remote_url: Mapped[str] = mapped_column(String(1000), default="")
+    remote_id: Mapped[str] = mapped_column(String(200), default="")
+    screenshot_path: Mapped[Optional[str]] = mapped_column(String(1000))
+    log: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(Text, default="")
+    confirmation_required: Mapped[bool] = mapped_column(Boolean, default=True)
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)

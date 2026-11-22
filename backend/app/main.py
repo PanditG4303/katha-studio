@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from .config import API_TOKEN, APP_NAME, APP_VERSION, DISABLE_WATCHER, config
 from .database import backup_database, init_db
 from .logging_config import configure_logging
-from .routers import channels, content, media, projects, publishing, system, videos, voice
+from .routers import agents, browser, channels, content, mcp, media, projects, publishing, skills, system, videos, voice
 from .security import require_token
 from .services.jobs import mark_interrupted_jobs
 from .services.video_import import watcher
@@ -31,6 +31,11 @@ async def lifespan(app: FastAPI):
     logger.info("%s %s backend started", APP_NAME, APP_VERSION)
     yield
     watcher.stop()
+    from .services import agents as agent_service
+    from .services import browser_manager
+
+    agent_service.stop_all()
+    browser_manager.get_runtime().stop_all()
     backup_database("shutdown")
     logger.info("Katha Studio backend stopped")
 
@@ -61,7 +66,20 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
-for router in [system.router, channels.router, content.router, projects.router, voice.router, videos.router, publishing.router, media.router]:
+for router in [
+    system.router,
+    channels.router,
+    content.router,
+    projects.router,
+    voice.router,
+    videos.router,
+    publishing.router,
+    media.router,
+    agents.router,
+    skills.router,
+    mcp.router,
+    browser.router,
+]:
     api.include_router(router)
 app.include_router(api)
 

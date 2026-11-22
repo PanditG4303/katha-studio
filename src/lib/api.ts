@@ -25,8 +25,16 @@ declare global {
       showItemInFolder: (targetPath: string) => Promise<{ ok: boolean; error?: string }>;
       openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>;
       detectClaude: () => Promise<unknown>;
+      detectAntigravity: () => Promise<unknown>;
+      launchAgent: (payload: {
+        agent: string;
+        folder: string;
+        promptPath?: string;
+        prompt?: string;
+        path?: string;
+      }) => Promise<{ ok: boolean; error?: string; mode?: string; launcher?: string }>;
       launchClaudeDesktop: () => Promise<{ ok: boolean; error?: string }>;
-      launchClaudeCode: (folder: string) => Promise<{ ok: boolean; error?: string }>;
+      launchClaudeCode: (folder: string, customPath?: string) => Promise<{ ok: boolean; error?: string }>;
     };
   }
 }
@@ -166,9 +174,19 @@ export const bridge = {
     if (window.katha) return window.katha.launchClaudeDesktop();
     return { ok: false, error: "Claude launch is available in the desktop app." };
   },
-  async launchClaudeCode(folder: string): Promise<{ ok: boolean; error?: string }> {
-    if (window.katha) return window.katha.launchClaudeCode(folder);
+  async launchClaudeCode(folder: string, customPath?: string): Promise<{ ok: boolean; error?: string }> {
+    if (window.katha) return window.katha.launchClaudeCode(folder, customPath);
     return { ok: false, error: "Claude Code launch is available in the desktop app." };
+  },
+  async launchAgent(payload: {
+    agent: string;
+    folder: string;
+    promptPath?: string;
+    prompt?: string;
+    path?: string;
+  }): Promise<{ ok: boolean; error?: string; mode?: string; launcher?: string }> {
+    if (window.katha) return window.katha.launchAgent(payload);
+    return { ok: false, error: "Agent launch is available in the desktop app." };
   },
   async appInfo() {
     if (window.katha) return window.katha.getAppInfo();
